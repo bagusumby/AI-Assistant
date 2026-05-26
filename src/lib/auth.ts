@@ -21,10 +21,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .eq("email", credentials.email as string)
           .single();
 
-        if (error || !user) return null;
+        if (error || !user) {
+          console.error("Supabase Error:", error); // <-- Tambahkan log ini
+          return null;
+        }
 
         const valid = await bcrypt.compare(credentials.password as string, user.password);
-        if (!valid) return null;
+        if (!valid) {
+          console.error("Kesalahan: Password tidak cocok!"); // <-- Tambahkan log ini
+          return null;
+        }
 
         return { id: user.id, name: user.name, email: user.email, role: user.role };
       },
