@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# netlify
+.netlify
+
+# local data (legacy sqlite)
+/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
