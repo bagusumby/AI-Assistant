@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       name: "credentials",
@@ -21,16 +22,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .eq("email", credentials.email as string)
           .single();
 
-        if (error || !user) {
-          console.error("Supabase Error:", error); // <-- Tambahkan log ini
-          return null;
-        }
+        if (error || !user) return null;
 
         const valid = await bcrypt.compare(credentials.password as string, user.password);
-        if (!valid) {
-          console.error("Kesalahan: Password tidak cocok!"); // <-- Tambahkan log ini
-          return null;
-        }
+        if (!valid) return null;
 
         return { id: user.id, name: user.name, email: user.email, role: user.role };
       },
