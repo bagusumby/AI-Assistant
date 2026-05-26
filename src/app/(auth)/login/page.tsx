@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { signIn, getSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
@@ -11,7 +10,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,13 +26,16 @@ export default function LoginPage() {
       setError("Email atau password salah");
       setLoading(false);
     } else {
-      // Get session to check role and redirect accordingly
-      const session = await getSession();
-      if (session?.user?.role === "admin") {
-        router.push("/admin");
-      } else {
-        router.push("/chat");
+      // Wait briefly for cookie to propagate, then get session for role check
+      let session = await getSession();
+      if (!session) {
+        // Retry once after short delay
+        await new Promise((r) => setTimeout(r, 500));
+        session = await getSession();
       }
+      const redirectUrl = session?.user?.role === "admin" ? "/admin" : "/chat";
+      // Use window.location for full page redirect to ensure cookie is sent
+      window.location.href = redirectUrl;
     }
   };
 
