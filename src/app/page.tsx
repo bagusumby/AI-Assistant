@@ -3,6 +3,11 @@ import { auth } from "@/lib/auth";
 
 export default async function Home() {
   const session = await auth();
-  if (session) redirect("/chat");
+  if (session) {
+    if (session.user.role === "admin") {
+      redirect("/admin");
+    }
+    redirect("/chat");
+  }
   redirect("/login");
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import db from "@/lib/db";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET() {
   const session = await auth();
@@ -8,15 +8,33 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sessions = db
-    .prepare(`
-      SELECT cs.id, cs.title, cs.created_at as createdAt,
-        (SELECT content FROM chat_messages WHERE session_id = cs.id ORDER BY created_at DESC LIMIT 1) as lastMessage
-      FROM chat_sessions cs
-      WHERE cs.user_id = ?
-      ORDER BY cs.created_at DESC
-    `)
-    .all(session.user.id);
+  const { data: sessions, error } = await supabaseAdmin
+    .from("chat_sessions")
+    .select("id, title, created_at")
+    .eq("user_id", session.user.id)
+    .order("created_at", { ascending: false });
 
-  return NextResponse.json(sessions);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Get last message for each session
+  const sessionsWithLastMessage = await Promise.all(
+    (sessions || []).map(async (s) => {
+      const { data: msgs } = await supabaseAdmin
+        .from("chat_messages")
+        .select("content")
+        .eq("session_id", s.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      return {
+        ...s,
+        createdAt: s.created_at,
+        lastMessage: msgs?.[0]?.content || null,
+      };
+    })
+  );
+
+  return NextResponse.json(sessionsWithLastMessage);
 }

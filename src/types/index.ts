@@ -3,32 +3,34 @@ export interface User {
   name: string;
   email: string;
   password?: string;
+  role: "admin" | "user";
+  created_at?: string;
 }
 
 export interface ChatMessage {
   id: string;
-  sessionId: string;
-  userId: string;
+  session_id: string;
+  user_id: string;
   role: "user" | "assistant";
   content: string;
-  createdAt: string;
+  created_at: string;
 }
 
 export interface ChatSession {
   id: string;
-  userId: string;
+  user_id: string;
   title: string;
-  createdAt: string;
+  created_at: string;
 }
 
 export interface UploadedFile {
   id: string;
-  userId: string;
+  user_id: string;
   filename: string;
-  fileSize: number;
-  totalChunks: number;
+  file_size: number;
+  total_chunks: number;
   status: "processing" | "completed" | "failed";
-  createdAt: string;
+  created_at: string;
 }
 
 export interface DocumentChunk {

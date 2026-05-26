@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 import { ragChat } from "@/lib/rag";
-import db from "@/lib/db";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -21,31 +21,48 @@ export async function POST(req: NextRequest) {
   // Create session if not exists
   if (!chatSessionId) {
     chatSessionId = uuid();
-    db.prepare("INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?)").run(
-      chatSessionId, userId, message.slice(0, 50)
-    );
+    await supabaseAdmin.from("chat_sessions").insert({
+      id: chatSessionId,
+      user_id: userId,
+      title: message.slice(0, 50),
+    });
   } else {
-    const existing = db.prepare("SELECT id FROM chat_sessions WHERE id = ? AND user_id = ?").get(chatSessionId, userId);
+    const { data: existing } = await supabaseAdmin
+      .from("chat_sessions")
+      .select("id")
+      .eq("id", chatSessionId)
+      .eq("user_id", userId)
+      .single();
+
     if (!existing) {
-      db.prepare("INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?)").run(
-        chatSessionId, userId, message.slice(0, 50)
-      );
+      await supabaseAdmin.from("chat_sessions").insert({
+        id: chatSessionId,
+        user_id: userId,
+        title: message.slice(0, 50),
+      });
     }
   }
 
   // Save user message
-  db.prepare("INSERT INTO chat_messages (id, session_id, user_id, role, content) VALUES (?, ?, ?, 'user', ?)").run(
-    uuid(), chatSessionId, userId, message
-  );
+  await supabaseAdmin.from("chat_messages").insert({
+    id: uuid(),
+    session_id: chatSessionId,
+    user_id: userId,
+    role: "user",
+    content: message,
+  });
 
   // Get history
-  const history = db
-    .prepare("SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT 20")
-    .all(chatSessionId) as { role: string; content: string }[];
+  const { data: history } = await supabaseAdmin
+    .from("chat_messages")
+    .select("role, content")
+    .eq("session_id", chatSessionId)
+    .order("created_at", { ascending: true })
+    .limit(20);
 
   try {
-    // Stream response
-    const { generator, sources } = await ragChat(message, history.slice(0, -1), true);
+    // Stream response (pass userId for user-scoped document search)
+    const { generator, sources } = await ragChat(message, (history || []).slice(0, -1), userId, true);
 
     const encoder = new TextEncoder();
     let fullResponse = "";
@@ -60,10 +77,14 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "", done: true, sources, sessionId: chatSessionId })}\n\n`));
 
           // Save assistant response
-          db.prepare("INSERT INTO chat_messages (id, session_id, user_id, role, content) VALUES (?, ?, ?, 'assistant', ?)").run(
-            uuid(), chatSessionId, userId, fullResponse
-          );
-        } catch (err) {
+          await supabaseAdmin.from("chat_messages").insert({
+            id: uuid(),
+            session_id: chatSessionId,
+            user_id: userId,
+            role: "assistant",
+            content: fullResponse,
+          });
+        } catch {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Stream error", done: true })}\n\n`));
         }
         controller.close();

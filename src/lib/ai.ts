@@ -1,30 +1,39 @@
 import OpenAI from "openai";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const EMBEDDING_DIM = parseInt(process.env.EMBEDDING_DIMENSION || "768");
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || process.env.NEXT_PUBLIC_OLLAMA_BASE_URL || "";
+const OLLAMA_TOKEN = process.env.OLLAMA_BEARER_TOKEN || process.env.NEXT_PUBLIC_OLLAMA_BEARER_TOKEN || "ollama";
+const EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL || "qwen3-embedding:4b";
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents?key=${GEMINI_API_KEY}`;
+  // Process in batches of 20 (same as Python backend)
+  const batchSize = 20;
+  const allEmbeddings: number[][] = [];
 
-  const requests = texts.map((text) => ({
-    model: "models/gemini-embedding-001",
-    content: { parts: [{ text }] },
-    outputDimensionality: EMBEDDING_DIM,
-  }));
+  for (let i = 0; i < texts.length; i += batchSize) {
+    const batch = texts.slice(i, i + batchSize);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ requests }),
-  });
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OLLAMA_TOKEN}`,
+      },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: batch,
+      }),
+    });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Embedding API error: ${err}`);
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Embedding API error: ${err}`);
+    }
+
+    const data = await response.json();
+    allEmbeddings.push(...data.embeddings);
   }
 
-  const data = await response.json();
-  return data.embeddings.map((e: { values: number[] }) => e.values);
+  return allEmbeddings;
 }
 
 export async function generateQueryEmbedding(query: string): Promise<number[]> {
@@ -35,8 +44,8 @@ export async function generateQueryEmbedding(query: string): Promise<number[]> {
 // LLM Chat via Ollama (OpenAI-compatible)
 export function getOpenAIClient(): OpenAI {
   return new OpenAI({
-    baseURL: `${process.env.OLLAMA_BASE_URL}/v1`,
-    apiKey: process.env.OLLAMA_BEARER_TOKEN || "ollama",
+    baseURL: `${OLLAMA_BASE_URL}/v1`,
+    apiKey: OLLAMA_TOKEN,
   });
 }
 
@@ -53,10 +62,11 @@ export async function chatCompletion(
   stream: boolean
 ): Promise<string | AsyncIterable<string>> {
   const client = getOpenAIClient();
+  const model = process.env.OLLAMA_MODEL || process.env.NEXT_PUBLIC_OLLAMA_MODEL || "gemma3:4b";
 
   if (!stream) {
     const response = await client.chat.completions.create({
-      model: process.env.OLLAMA_MODEL || "gemma3:4b",
+      model,
       messages: messages as OpenAI.ChatCompletionMessageParam[],
       temperature: 0.7,
       max_tokens: 2000,
@@ -66,7 +76,7 @@ export async function chatCompletion(
   }
 
   const response = await client.chat.completions.create({
-    model: process.env.OLLAMA_MODEL || "gemma3:4b",
+    model,
     messages: messages as OpenAI.ChatCompletionMessageParam[],
     temperature: 0.7,
     max_tokens: 2000,

@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { motion } from "framer-motion";
 import { usePendingAction } from "@/lib/PendingActionContext";
 
 interface SidebarProps {
-  user: { name?: string | null; email?: string | null };
+  user: { name?: string | null; email?: string | null; role?: string };
 }
 
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
-  const { confirmNavigation } = usePendingAction();
+  const router = useRouter();
+  const { isPending, requestNavigation } = usePendingAction();
+  const isAdmin = user.role === "admin";
 
   const links = [
     { href: "/chat", label: "Chat", icon: (
@@ -20,12 +22,28 @@ export function Sidebar({ user }: SidebarProps) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
       </svg>
     )},
-    { href: "/upload", label: "Upload", icon: (
+    ...(isAdmin ? [{ href: "/upload", label: "Upload", icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
-    )},
+    )}] : []),
+    ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+      </svg>
+    )}] : []),
   ];
+
+  const handleNavigation = (e: React.MouseEvent, href: string) => {
+    e.preventDefault();
+    if (pathname === href || pathname.startsWith(href + "/")) return;
+
+    if (isPending) {
+      requestNavigation(() => router.push(href));
+    } else {
+      router.push(href);
+    }
+  };
 
   return (
     <motion.aside
@@ -51,17 +69,12 @@ export function Sidebar({ user }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
         {links.map((link) => {
-          const isActive = pathname === link.href;
+          const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
           return (
             <Link
               key={link.href}
               href={link.href}
-              onClick={(e) => {
-                if (isActive) return;
-                if (!confirmNavigation()) {
-                  e.preventDefault();
-                }
-              }}
+              onClick={(e) => handleNavigation(e, link.href)}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                 isActive
                   ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
@@ -84,12 +97,18 @@ export function Sidebar({ user }: SidebarProps) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user.name}</p>
             <p className="text-xs text-gray-500 truncate">{user.email}</p>
+            {isAdmin && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-medium">Admin</span>
+            )}
           </div>
         </div>
         <button
           onClick={() => {
-            if (!confirmNavigation()) return;
-            signOut({ callbackUrl: "/login" });
+            if (isPending) {
+              requestNavigation(() => signOut({ callbackUrl: "/login" }));
+            } else {
+              signOut({ callbackUrl: "/login" });
+            }
           }}
           className="w-full px-3 py-2 text-xs text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
         >

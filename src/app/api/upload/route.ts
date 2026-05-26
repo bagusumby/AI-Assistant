@@ -1,26 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { v4 as uuid } from "uuid";
 import { generateEmbeddings } from "@/lib/ai";
 import { addDocuments } from "@/lib/vectorstore";
-import db from "@/lib/db";
-import { PDFParse } from "pdf-parse";
-
-function splitText(text: string, chunkSize = 1000, overlap = 200): string[] {
-  const chunks: string[] = [];
-  let start = 0;
-  while (start < text.length) {
-    const end = Math.min(start + chunkSize, text.length);
-    chunks.push(text.slice(start, end));
-    start += chunkSize - overlap;
-  }
-  return chunks;
-}
+import { supabaseAdmin } from "@/lib/supabase";
+import { splitTextRecursive } from "@/lib/textSplitter";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Only admin can upload
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Hanya admin yang dapat mengupload dokumen" }, { status: 403 });
   }
 
   try {
@@ -31,51 +24,90 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Hanya file PDF yang diperbolehkan" }, { status: 400 });
     }
 
-    const fileId = uuid();
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Track file
-    db.prepare(
-      "INSERT INTO uploaded_files (id, user_id, filename, file_size, status) VALUES (?, ?, ?, ?, 'processing')"
-    ).run(fileId, session.user.id, file.name, buffer.length);
+    // Track file in uploaded_files
+    await supabaseAdmin.from("uploaded_files").insert({
+      user_id: session.user.id,
+      filename: file.name,
+      file_size: buffer.length,
+      status: "processing",
+    });
 
-    // Extract text
+    // Extract text from PDF (page by page, same as Python backend using pdfplumber-style)
+    const { PDFParse } = await import("pdf-parse");
     const pdf = new PDFParse({ data: buffer });
-    const result = await pdf.getText();
-    const text = result.text;
+    const pdfResult = await pdf.getText();
 
-    if (!text.trim()) {
-      db.prepare("UPDATE uploaded_files SET status = 'failed' WHERE id = ?").run(fileId);
+    // Build pages array (same as Python backend's pdf_processor.extract_text)
+    const pages: { text: string; pageNumber: number }[] = [];
+    if (pdfResult.pages && pdfResult.pages.length > 0) {
+      for (let i = 0; i < pdfResult.pages.length; i++) {
+        const pageText = pdfResult.pages[i]?.text || "";
+        if (pageText.trim()) {
+          pages.push({ text: pageText.trim(), pageNumber: i + 1 });
+        }
+      }
+    }
+
+    // Fallback: if pages not available, use full text
+    if (pages.length === 0 && pdfResult.text?.trim()) {
+      pages.push({ text: pdfResult.text.trim(), pageNumber: 1 });
+    }
+
+    if (pages.length === 0) {
+      await supabaseAdmin
+        .from("uploaded_files")
+        .update({ status: "failed" })
+        .eq("filename", file.name)
+        .eq("user_id", session.user.id);
       return NextResponse.json({ error: "PDF tidak mengandung teks" }, { status: 400 });
     }
 
-    // Split into chunks
-    const chunks = splitText(text);
+    // Split into chunks per page using RecursiveCharacterTextSplitter
+    // (same as Python backend: text_splitter.split_pages)
+    const allChunks: { content: string; metadata: { filename: string; pageNumber: number; chunkIndex: number; totalChunks: number } }[] = [];
 
-    // Generate embeddings
-    const embeddings = await generateEmbeddings(chunks);
+    for (const page of pages) {
+      const pageChunks = splitTextRecursive(page.text, 1000, 200);
+      for (const chunkText of pageChunks) {
+        allChunks.push({
+          content: chunkText,
+          metadata: {
+            filename: file.name,
+            pageNumber: page.pageNumber,
+            chunkIndex: 0, // updated below
+            totalChunks: 0, // updated below
+          },
+        });
+      }
+    }
 
-    // Store in ChromaDB
-    const ids = chunks.map((_, i) => `${fileId}_${i}`);
-    const metadatas = chunks.map((_, i) => ({
-      filename: file.name,
-      pageNumber: 1,
-      chunkIndex: i,
-      userId: session.user!.id!,
-    }));
+    // Update global chunk indices (same as Python backend)
+    for (let i = 0; i < allChunks.length; i++) {
+      allChunks[i].metadata.chunkIndex = i;
+      allChunks[i].metadata.totalChunks = allChunks.length;
+    }
 
-    await addDocuments(ids, embeddings, chunks, metadatas);
+    // Generate embeddings (full 2560 dim, batched in groups of 20)
+    const texts = allChunks.map((c) => c.content);
+    const embeddings = await generateEmbeddings(texts);
 
-    // Update status
-    db.prepare("UPDATE uploaded_files SET status = 'completed', total_chunks = ? WHERE id = ?").run(
-      chunks.length, fileId
-    );
+    // Store in Supabase 'documents' table (same as Python backend)
+    await addDocuments(session.user.id, allChunks, embeddings);
+
+    // Update file status
+    await supabaseAdmin
+      .from("uploaded_files")
+      .update({ status: "completed", total_chunks: allChunks.length })
+      .eq("filename", file.name)
+      .eq("user_id", session.user.id);
 
     return NextResponse.json({
       success: true,
-      message: `File '${file.name}' berhasil diproses. ${chunks.length} chunks disimpan.`,
+      message: `File '${file.name}' berhasil diproses. ${allChunks.length} chunks disimpan.`,
       filename: file.name,
-      totalChunks: chunks.length,
+      totalChunks: allChunks.length,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";

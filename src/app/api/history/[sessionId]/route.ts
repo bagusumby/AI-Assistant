@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import db from "@/lib/db";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ sessionId: string }> }) {
   const session = await auth();
@@ -10,11 +10,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sess
 
   const { sessionId } = await params;
 
-  const messages = db
-    .prepare("SELECT role, content, created_at as createdAt FROM chat_messages WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC")
-    .all(sessionId, session.user.id);
+  const { data: messages, error } = await supabaseAdmin
+    .from("chat_messages")
+    .select("role, content, created_at")
+    .eq("session_id", sessionId)
+    .eq("user_id", session.user.id)
+    .order("created_at", { ascending: true });
 
-  return NextResponse.json(messages);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const formatted = (messages || []).map((m) => ({
+    role: m.role,
+    content: m.content,
+    createdAt: m.created_at,
+  }));
+
+  return NextResponse.json(formatted);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ sessionId: string }> }) {
@@ -25,8 +38,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ s
 
   const { sessionId } = await params;
 
-  db.prepare("DELETE FROM chat_messages WHERE session_id = ? AND user_id = ?").run(sessionId, session.user.id);
-  db.prepare("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?").run(sessionId, session.user.id);
+  await supabaseAdmin
+    .from("chat_messages")
+    .delete()
+    .eq("session_id", sessionId)
+    .eq("user_id", session.user.id);
+
+  await supabaseAdmin
+    .from("chat_sessions")
+    .delete()
+    .eq("id", sessionId)
+    .eq("user_id", session.user.id);
 
   return NextResponse.json({ success: true });
 }

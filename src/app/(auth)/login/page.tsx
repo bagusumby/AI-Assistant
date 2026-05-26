@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -28,7 +28,13 @@ export default function LoginPage() {
       setError("Email atau password salah");
       setLoading(false);
     } else {
-      router.push("/chat");
+      // Get session to check role and redirect accordingly
+      const session = await getSession();
+      if (session?.user?.role === "admin") {
+        router.push("/admin");
+      } else {
+        router.push("/chat");
+      }
     }
   };
 

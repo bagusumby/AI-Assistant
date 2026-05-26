@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import db from "@/lib/db";
+import { supabaseAdmin } from "@/lib/supabase";
 import { deleteByFilename } from "@/lib/vectorstore";
 
 export async function GET() {
@@ -9,18 +9,29 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Show all uploaded files to all users (shared knowledge base)
-  const files = db
-    .prepare("SELECT * FROM uploaded_files ORDER BY created_at DESC")
-    .all();
+  // Show uploaded files for the current user
+  const { data: files, error } = await supabaseAdmin
+    .from("uploaded_files")
+    .select("*")
+    .eq("user_id", session.user.id)
+    .order("created_at", { ascending: false });
 
-  return NextResponse.json(files);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(files || []);
 }
 
 export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Only admin can delete files
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Hanya admin yang dapat menghapus dokumen" }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -30,16 +41,22 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "File ID required" }, { status: 400 });
   }
 
-  const file = db
-    .prepare("SELECT * FROM uploaded_files WHERE id = ?")
-    .get(fileId) as { filename: string } | undefined;
+  const { data: file } = await supabaseAdmin
+    .from("uploaded_files")
+    .select("filename")
+    .eq("id", fileId)
+    .eq("user_id", session.user.id)
+    .single();
 
   if (!file) {
     return NextResponse.json({ error: "File tidak ditemukan" }, { status: 404 });
   }
 
-  await deleteByFilename(file.filename);
-  db.prepare("DELETE FROM uploaded_files WHERE id = ?").run(fileId);
+  // Delete document chunks from Supabase 'documents' table
+  await deleteByFilename(file.filename, session.user.id);
+
+  // Delete file record
+  await supabaseAdmin.from("uploaded_files").delete().eq("id", fileId);
 
   return NextResponse.json({ success: true });
 }

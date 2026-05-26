@@ -10,7 +10,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <PendingActionProvider>
       <div className="flex h-screen overflow-hidden">
-        <Sidebar user={session.user!} />
+        <Sidebar user={{ ...session.user!, role: session.user.role }} />
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>
     </PendingActionProvider>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { v4 as uuid } from "uuid";
-import db from "@/lib/db";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,7 +16,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Check existing user
-    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
+    const { data: existing } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("email", email)
+      .single();
+
     if (existing) {
       return NextResponse.json({ error: "Email sudah terdaftar" }, { status: 409 });
     }
@@ -24,12 +29,20 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const id = uuid();
 
-    db.prepare("INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)").run(
-      id, name, email, hashedPassword
-    );
+    const { error } = await supabaseAdmin.from("users").insert({
+      id,
+      name,
+      email,
+      password: hashedPassword,
+      role: "user",
+    });
+
+    if (error) {
+      return NextResponse.json({ error: "Gagal registrasi: " + error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true, message: "Registrasi berhasil" });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Gagal registrasi" }, { status: 500 });
   }
 }
