@@ -1,7 +1,7 @@
 import { generateQueryEmbedding, chatCompletion } from "./ai";
 import { queryDocuments } from "./vectorstore";
 
-const SYSTEM_PROMPT = `PERAN: Kamu adalah AI Assistant privat yang terikat HANYA pada dokumen yang diberikan.
+const DEFAULT_SYSTEM_PROMPT = `PERAN: Kamu adalah AI Assistant privat yang terikat HANYA pada dokumen yang diberikan.
 
 INSTRUKSI MUTLAK - TIDAK BOLEH DILANGGAR:
 - Kamu HANYA boleh menjawab menggunakan informasi dari "Konteks Dokumen" di bawah.
@@ -29,28 +29,31 @@ interface RAGResult {
 export async function ragChat(
   query: string,
   history: { role: string; content: string }[],
-  userId: string,
-  stream: false
+  botId: string | null,
+  stream: false,
+  customSystemPrompt?: string | null
 ): Promise<RAGResult>;
 export async function ragChat(
   query: string,
   history: { role: string; content: string }[],
-  userId: string,
-  stream: true
+  botId: string | null,
+  stream: true,
+  customSystemPrompt?: string | null
 ): Promise<{ generator: AsyncIterable<string>; sources: RAGResult["sources"] }>;
 export async function ragChat(
   query: string,
   history: { role: string; content: string }[],
-  userId: string,
-  stream: boolean
+  botId: string | null,
+  stream: boolean,
+  customSystemPrompt?: string | null
 ) {
   // 1. Generate query embedding
   const queryEmbedding = await generateQueryEmbedding(query);
 
-  // 2. Search documents via Supabase pgvector (shared knowledge base - no user filter)
-  const results = await queryDocuments(queryEmbedding, null, 5, 0.3);
+  // 2. Search documents scoped to the AI bot's namespace
+  const results = await queryDocuments(queryEmbedding, botId, 5, SIMILARITY_THRESHOLD);
 
-  // 3. Filter by similarity threshold (same as Python backend: min_score = 0.5)
+  // 3. Filter by similarity threshold
   const relevantDocs = results.documents.filter((d) => d.similarity >= SIMILARITY_THRESHOLD);
 
   // 4. Build sources
@@ -69,19 +72,23 @@ export async function ragChat(
     return { response: NO_CONTEXT, sources: [] };
   }
 
-  // 6. Build context (same format as Python backend)
+  // 6. Build context
   const context = relevantDocs
     .map((d, i) => `[Sumber ${i + 1}: ${d.metadata.filename}, Halaman ${d.metadata.page_number}]\n${d.content}`)
     .join("\n\n---\n\n");
 
-  // 7. Build messages
+  // 7. Use custom system prompt if provided, else default
+  const systemPromptTemplate = customSystemPrompt || DEFAULT_SYSTEM_PROMPT;
+  const systemContent = systemPromptTemplate.replace("{context}", context);
+
+  // 8. Build messages
   const messages = [
-    { role: "system", content: SYSTEM_PROMPT.replace("{context}", context) },
+    { role: "system", content: systemContent },
     ...history.slice(-10),
     { role: "user", content: query },
   ];
 
-  // 8. Generate response
+  // 9. Generate response
   if (stream) {
     const generator = await chatCompletion(messages, true);
     return { generator, sources };

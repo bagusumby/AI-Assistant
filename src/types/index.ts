@@ -1,9 +1,46 @@
+export interface Role {
+  id: string;
+  name: string;
+  label: string;
+  description?: string;
+  type: "system" | "manager" | "user";
+  created_at?: string;
+}
+
+export interface AiBot {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  manager_role_id?: string | null;
+  chat_enabled: boolean;
+  system_prompt?: string | null;
+  created_at?: string;
+  role?: Role;
+}
+
+export interface Menu {
+  id: string;
+  label: string;
+  path: string;
+  icon: string;
+  sort_order: number;
+  created_at?: string;
+}
+
+export interface RoleMenuPermission {
+  id: string;
+  role_id: string;
+  menu_id: string;
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   password?: string;
-  role: "admin" | "user";
+  role: string;
+  role_id?: string | null;
   created_at?: string;
 }
 
@@ -19,6 +56,7 @@ export interface ChatMessage {
 export interface ChatSession {
   id: string;
   user_id: string;
+  ai_bot_id?: string | null;
   title: string;
   created_at: string;
 }
@@ -26,6 +64,7 @@ export interface ChatSession {
 export interface UploadedFile {
   id: string;
   user_id: string;
+  ai_bot_id?: string | null;
   filename: string;
   file_size: number;
   total_chunks: number;

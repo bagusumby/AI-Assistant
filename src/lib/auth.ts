@@ -27,7 +27,48 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const valid = await bcrypt.compare(credentials.password as string, user.password);
         if (!valid) return null;
 
-        return { id: user.id, name: user.name, email: user.email, role: user.role };
+        // Look up the role type from the roles table using the role slug
+        let roleType = "user";
+        let roleId: string | null = null;
+        if (user.role === "admin") {
+          roleType = "admin";
+        } else if (user.role) {
+          const { data: roleData } = await supabaseAdmin
+            .from("roles")
+            .select("id, type")
+            .eq("name", user.role)
+            .single();
+          if (roleData) {
+            roleType = roleData.type || "user";
+            roleId = roleData.id;
+          }
+        }
+
+        // If manager, get their linked AI bot
+        let botId: string | null = null;
+        let botSlug: string | null = null;
+        if (roleType === "manager" && roleId) {
+          const { data: bot } = await supabaseAdmin
+            .from("ai_bots")
+            .select("id, slug")
+            .eq("manager_role_id", roleId)
+            .single();
+          if (bot) {
+            botId = bot.id;
+            botSlug = bot.slug;
+          }
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          roleType,
+          roleId,
+          botId,
+          botSlug,
+        };
       },
     }),
   ],
@@ -40,6 +81,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role || "user";
+        token.roleType = (user as { roleType?: string }).roleType || "user";
+        token.roleId = (user as { roleId?: string | null }).roleId ?? null;
+        token.botId = (user as { botId?: string | null }).botId ?? null;
+        token.botSlug = (user as { botSlug?: string | null }).botSlug ?? null;
       }
       return token;
     },
@@ -47,6 +92,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user && token.id) {
         session.user.id = token.id as string;
         session.user.role = (token.role as string) || "user";
+        session.user.roleType = (token.roleType as string) || "user";
+        session.user.roleId = (token.roleId as string | null) ?? null;
+        session.user.botId = (token.botId as string | null) ?? null;
+        session.user.botSlug = (token.botSlug as string | null) ?? null;
       }
       return session;
     },

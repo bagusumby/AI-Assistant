@@ -11,7 +11,9 @@ export default auth((req) => {
 
   if (isPublic) {
     if (session && (pathname === "/login" || pathname === "/register")) {
-      const redirectUrl = session.user?.role === "admin" ? "/admin" : "/chat";
+      let redirectUrl = "/chat";
+      if (session.user?.role === "admin") redirectUrl = "/admin";
+      else if (session.user?.roleType === "manager") redirectUrl = "/upload";
       return NextResponse.redirect(new URL(redirectUrl, req.url));
     }
     return NextResponse.next();
@@ -22,9 +24,23 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Admin routes protection
-  if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin") || pathname.startsWith("/upload")) {
-    if (session.user?.role !== "admin") {
+  const role = session.user?.role;
+  const roleType = session.user?.roleType;
+
+  // Admin-only routes
+  if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
+    if (role !== "admin") {
+      return NextResponse.redirect(new URL("/chat", req.url));
+    }
+  }
+
+  // Upload routes: admin or managers only
+  if (
+    pathname.startsWith("/upload") ||
+    pathname.startsWith("/api/upload") ||
+    pathname.startsWith("/api/files")
+  ) {
+    if (role !== "admin" && roleType !== "manager") {
       return NextResponse.redirect(new URL("/chat", req.url));
     }
   }
