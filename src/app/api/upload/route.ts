@@ -11,9 +11,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Only admin can upload
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ error: "Hanya admin yang dapat mengupload dokumen" }, { status: 403 });
+  const role = session.user.role;
+  const roleType = session.user.roleType;
+
+  // Only admin or managers can upload
+  if (role !== "admin" && roleType !== "manager") {
+    return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
   }
 
   try {
@@ -24,22 +27,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Hanya file PDF yang diperbolehkan" }, { status: 400 });
     }
 
+    // Determine which bot to upload to
+    let botId: string | null = null;
+
+    if (roleType === "manager") {
+      // Manager: use their linked bot from session
+      botId = session.user.botId ?? null;
+      if (!botId) {
+        return NextResponse.json({ error: "Manager tidak memiliki AI Bot yang terhubung" }, { status: 400 });
+      }
+    } else if (role === "admin") {
+      // Admin: must specify botId in form data
+      const formBotId = formData.get("botId") as string | null;
+      if (!formBotId) {
+        return NextResponse.json({ error: "Admin harus memilih AI Bot tujuan upload" }, { status: 400 });
+      }
+      // Validate bot exists
+      const { data: bot } = await supabaseAdmin.from("ai_bots").select("id").eq("id", formBotId).single();
+      if (!bot) {
+        return NextResponse.json({ error: "AI Bot tidak ditemukan" }, { status: 404 });
+      }
+      botId = formBotId;
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Track file in uploaded_files
     await supabaseAdmin.from("uploaded_files").insert({
       user_id: session.user.id,
+      ai_bot_id: botId,
       filename: file.name,
       file_size: buffer.length,
       status: "processing",
     });
 
-    // Extract text from PDF (page by page, same as Python backend using pdfplumber-style)
+    // Extract text from PDF
     const { PDFParse } = await import("pdf-parse");
     const pdf = new PDFParse({ data: buffer });
     const pdfResult = await pdf.getText();
 
-    // Build pages array (same as Python backend's pdf_processor.extract_text)
     const pages: { text: string; pageNumber: number }[] = [];
     if (pdfResult.pages && pdfResult.pages.length > 0) {
       for (let i = 0; i < pdfResult.pages.length; i++) {
@@ -50,7 +76,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Fallback: if pages not available, use full text
     if (pages.length === 0 && pdfResult.text?.trim()) {
       pages.push({ text: pdfResult.text.trim(), pageNumber: 1 });
     }
@@ -64,8 +89,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "PDF tidak mengandung teks" }, { status: 400 });
     }
 
-    // Split into chunks per page using RecursiveCharacterTextSplitter
-    // (same as Python backend: text_splitter.split_pages)
     const allChunks: { content: string; metadata: { filename: string; pageNumber: number; chunkIndex: number; totalChunks: number } }[] = [];
 
     for (const page of pages) {
@@ -73,35 +96,27 @@ export async function POST(req: NextRequest) {
       for (const chunkText of pageChunks) {
         allChunks.push({
           content: chunkText,
-          metadata: {
-            filename: file.name,
-            pageNumber: page.pageNumber,
-            chunkIndex: 0, // updated below
-            totalChunks: 0, // updated below
-          },
+          metadata: { filename: file.name, pageNumber: page.pageNumber, chunkIndex: 0, totalChunks: 0 },
         });
       }
     }
 
-    // Update global chunk indices (same as Python backend)
     for (let i = 0; i < allChunks.length; i++) {
       allChunks[i].metadata.chunkIndex = i;
       allChunks[i].metadata.totalChunks = allChunks.length;
     }
 
-    // Generate embeddings (full 2560 dim, batched in groups of 20)
     const texts = allChunks.map((c) => c.content);
     const embeddings = await generateEmbeddings(texts);
 
-    // Store in Supabase 'documents' table (same as Python backend)
-    await addDocuments(session.user.id, allChunks, embeddings);
+    await addDocuments(session.user.id, botId!, allChunks, embeddings);
 
-    // Update file status
     await supabaseAdmin
       .from("uploaded_files")
       .update({ status: "completed", total_chunks: allChunks.length })
       .eq("filename", file.name)
-      .eq("user_id", session.user.id);
+      .eq("user_id", session.user.id)
+      .eq("ai_bot_id", botId);
 
     return NextResponse.json({
       success: true,
@@ -114,3 +129,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Gagal memproses file: ${message}` }, { status: 500 });
   }
 }
+

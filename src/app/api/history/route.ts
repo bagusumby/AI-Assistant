@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: sessions, error } = await supabaseAdmin
     .from("chat_sessions")
-    .select("id, title, created_at")
+    .select("id, title, ai_bot_id, created_at")
     .eq("user_id", session.user.id)
     .order("created_at", { ascending: false });
 
@@ -30,6 +30,7 @@ export async function GET() {
 
       return {
         ...s,
+        ai_bot_id: s.ai_bot_id ?? null,
         createdAt: s.created_at,
         lastMessage: msgs?.[0]?.content || null,
       };

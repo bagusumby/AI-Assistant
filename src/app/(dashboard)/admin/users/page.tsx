@@ -11,8 +11,15 @@ interface User {
   created_at: string;
 }
 
+interface Role {
+  id: string;
+  name: string;
+  label: string;
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -23,7 +30,12 @@ export default function AdminUsersPage() {
   const fetchUsers = useCallback(async () => {
     const res = await fetch("/api/admin/users");
     const data = await res.json();
-    setUsers(data);
+    if (data.users) {
+      setUsers(data.users);
+      setRoles(data.roles || []);
+    } else {
+      setUsers(data);
+    }
     setLoading(false);
   }, []);
 
@@ -141,12 +153,8 @@ export default function AdminUsersPage() {
                       <td className="px-6 py-4 text-sm">{user.name}</td>
                       <td className="px-6 py-4 text-sm text-gray-400">{user.email}</td>
                       <td className="px-6 py-4">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                          user.role === "admin"
-                            ? "bg-indigo-500/20 text-indigo-300"
-                            : "bg-gray-500/20 text-gray-300"
-                        }`}>
-                          {user.role}
+                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-gray-500/20 text-gray-300">
+                          {roles.find((r) => r.name === user.role)?.label || user.role}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-400">
@@ -243,8 +251,9 @@ export default function AdminUsersPage() {
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-white"
                   >
-                    <option value="user" className="bg-gray-900">User</option>
-                    <option value="admin" className="bg-gray-900">Admin</option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.name} className="bg-gray-900">{r.label}</option>
+                    ))}
                   </select>
                 </div>
 

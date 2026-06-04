@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigationWarning } from "@/lib/useNavigationWarning";
+import { useSession } from "next-auth/react";
 
 interface FileItem {
   id: string;
@@ -11,28 +12,60 @@ interface FileItem {
   total_chunks: number;
   status: string;
   created_at: string;
+  ai_bot_id?: string;
+}
+
+interface AiBot {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
 }
 
 export default function UploadPage() {
+  const { data: session } = useSession();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [bots, setBots] = useState<AiBot[]>([]);
+  const [selectedBotId, setSelectedBotId] = useState<string>("");
+  const [filterBotId, setFilterBotId] = useState<string>("");
 
-  // Warn user if they try to navigate away while uploading
+  const isAdmin = session?.user?.role === "admin";
+  const isManager = session?.user?.roleType === "manager";
+  const managerBotName = (session?.user as { botSlug?: string })?.botSlug;
+
   useNavigationWarning(uploading);
 
   const fetchFiles = useCallback(async () => {
-    const res = await fetch("/api/files");
+    const url = isAdmin && filterBotId ? `/api/files?botId=${filterBotId}` : "/api/files";
+    const res = await fetch(url);
     if (res.ok) setFiles(await res.json());
-  }, []);
+  }, [isAdmin, filterBotId]);
 
   useEffect(() => { fetchFiles(); }, [fetchFiles]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetch("/api/admin/bots")
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data)) setBots(data);
+        })
+        .catch(() => {});
+    }
+  }, [isAdmin]);
 
   const uploadFile = async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       setMessage({ type: "error", text: "Hanya file PDF yang diperbolehkan" });
+      return;
+    }
+
+    if (isAdmin && !selectedBotId) {
+      setMessage({ type: "error", text: "Pilih AI Bot tujuan upload terlebih dahulu" });
       return;
     }
 
@@ -42,6 +75,9 @@ export default function UploadPage() {
 
     const formData = new FormData();
     formData.append("file", file);
+    if (isAdmin && selectedBotId) {
+      formData.append("botId", selectedBotId);
+    }
 
     const interval = setInterval(() => {
       setProgress((p) => Math.min(p + 10, 90));
@@ -78,8 +114,51 @@ export default function UploadPage() {
       <div className="max-w-3xl mx-auto">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-2xl font-bold gradient-text mb-1">Upload Dokumen</h1>
-          <p className="text-gray-400 text-sm mb-8">Upload file PDF untuk melatih AI Assistant Anda</p>
+          <p className="text-gray-400 text-sm mb-6">Upload file PDF untuk knowledge base AI Bot</p>
         </motion.div>
+
+        {/* Manager: bot badge */}
+        {isManager && (
+          <div className="flex items-center gap-2 mb-6 px-4 py-3 glass rounded-xl border border-indigo-500/30">
+            <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            </svg>
+            <span className="text-sm text-gray-300">Upload ke:</span>
+            <span className="text-sm font-semibold text-indigo-300">{managerBotName || "Bot Anda"}</span>
+          </div>
+        )}
+
+        {/* Admin: bot selector + filter */}
+        {isAdmin && (
+          <div className="flex gap-3 mb-6">
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1.5">Bot tujuan upload</label>
+              <select
+                value={selectedBotId}
+                onChange={(e) => setSelectedBotId(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-indigo-500 outline-none text-sm text-white"
+              >
+                <option value="" className="bg-gray-900">-- Pilih AI Bot --</option>
+                {bots.map((b) => (
+                  <option key={b.id} value={b.id} className="bg-gray-900">{b.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1.5">Filter tampilan file</label>
+              <select
+                value={filterBotId}
+                onChange={(e) => setFilterBotId(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-indigo-500 outline-none text-sm text-white"
+              >
+                <option value="" className="bg-gray-900">Semua Bot</option>
+                {bots.map((b) => (
+                  <option key={b.id} value={b.id} className="bg-gray-900">{b.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         {/* Alert */}
         <AnimatePresence>

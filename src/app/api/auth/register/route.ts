@@ -26,6 +26,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email sudah terdaftar" }, { status: 409 });
     }
 
+    // Get 'user' role id
+    const { data: userRole } = await supabaseAdmin
+      .from("roles")
+      .select("id")
+      .eq("name", "user")
+      .single();
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const id = uuid();
 
@@ -35,6 +42,7 @@ export async function POST(req: NextRequest) {
       email,
       password: hashedPassword,
       role: "user",
+      role_id: userRole?.id ?? null,
     });
 
     if (error) {

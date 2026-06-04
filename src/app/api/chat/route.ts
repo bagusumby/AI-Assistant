@@ -10,9 +10,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { message, sessionId } = await req.json();
+  const { message, sessionId, botId } = await req.json();
   if (!message?.trim()) {
     return NextResponse.json({ error: "Pesan tidak boleh kosong" }, { status: 400 });
+  }
+
+  if (!botId) {
+    return NextResponse.json({ error: "Pilih AI Bot terlebih dahulu" }, { status: 400 });
+  }
+
+  // Validate bot exists and is enabled
+  const { data: bot } = await supabaseAdmin
+    .from("ai_bots")
+    .select("id, name, system_prompt, chat_enabled")
+    .eq("id", botId)
+    .single();
+
+  if (!bot) {
+    return NextResponse.json({ error: "AI Bot tidak ditemukan" }, { status: 404 });
+  }
+
+  if (!bot.chat_enabled) {
+    return NextResponse.json({ error: "AI Bot ini sedang dinonaktifkan" }, { status: 403 });
   }
 
   const userId = session.user.id;
@@ -24,12 +43,13 @@ export async function POST(req: NextRequest) {
     await supabaseAdmin.from("chat_sessions").insert({
       id: chatSessionId,
       user_id: userId,
+      ai_bot_id: botId,
       title: message.slice(0, 50),
     });
   } else {
     const { data: existing } = await supabaseAdmin
       .from("chat_sessions")
-      .select("id")
+      .select("id, ai_bot_id")
       .eq("id", chatSessionId)
       .eq("user_id", userId)
       .single();
@@ -38,6 +58,7 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin.from("chat_sessions").insert({
         id: chatSessionId,
         user_id: userId,
+        ai_bot_id: botId,
         title: message.slice(0, 50),
       });
     }
@@ -61,8 +82,13 @@ export async function POST(req: NextRequest) {
     .limit(20);
 
   try {
-    // Stream response (pass userId for user-scoped document search)
-    const { generator, sources } = await ragChat(message, (history || []).slice(0, -1), userId, true);
+    const { generator, sources } = await ragChat(
+      message,
+      (history || []).slice(0, -1),
+      botId,
+      true,
+      bot.system_prompt
+    );
 
     const encoder = new TextEncoder();
     let fullResponse = "";
@@ -74,9 +100,8 @@ export async function POST(req: NextRequest) {
             fullResponse += chunk;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk, done: false })}\n\n`));
           }
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "", done: true, sources, sessionId: chatSessionId })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "", done: true, sources, sessionId: chatSessionId, botId })}\n\n`));
 
-          // Save assistant response
           await supabaseAdmin.from("chat_messages").insert({
             id: uuid(),
             session_id: chatSessionId,

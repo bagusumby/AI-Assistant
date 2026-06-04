@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
 import { v4 as uuid } from "uuid";
 
-// GET - List all users
+// GET - List all users with roles
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id || session.user.role !== "admin") {
@@ -13,14 +13,20 @@ export async function GET() {
 
   const { data: users, error } = await supabaseAdmin
     .from("users")
-    .select("id, name, email, role, created_at")
+    .select("id, name, email, role, role_id, created_at, roles(id, name, label, type)")
     .order("created_at", { ascending: false });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(users);
+  // Also return all roles for the dropdown
+  const { data: roles } = await supabaseAdmin
+    .from("roles")
+    .select("id, name, label, type")
+    .order("type", { ascending: true });
+
+  return NextResponse.json({ users: users || [], roles: roles || [] });
 }
 
 // POST - Create user
@@ -51,6 +57,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Email sudah terdaftar" }, { status: 409 });
   }
 
+  // Get role_id from roles table
+  const roleSlug = role || "user";
+  const { data: roleData } = await supabaseAdmin
+    .from("roles")
+    .select("id")
+    .eq("name", roleSlug)
+    .single();
+
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const { error } = await supabaseAdmin.from("users").insert({
@@ -58,7 +72,8 @@ export async function POST(req: NextRequest) {
     name,
     email,
     password: hashedPassword,
-    role: role || "user",
+    role: roleSlug,
+    role_id: roleData?.id ?? null,
   });
 
   if (error) {
@@ -93,7 +108,20 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Email sudah digunakan user lain" }, { status: 409 });
   }
 
-  const updateData: Record<string, string> = { name, email, role: role || "user" };
+  // Get role_id from roles table
+  const roleSlug = role || "user";
+  const { data: roleData } = await supabaseAdmin
+    .from("roles")
+    .select("id")
+    .eq("name", roleSlug)
+    .single();
+
+  const updateData: Record<string, unknown> = {
+    name,
+    email,
+    role: roleSlug,
+    role_id: roleData?.id ?? null,
+  };
 
   if (password && password.length >= 6) {
     updateData.password = await bcrypt.hash(password, 10);
