@@ -8,7 +8,7 @@ if (process.env.NODE_ENV !== "production") {
 
 const nextConfig: NextConfig = {
   // No native modules needed - using Supabase (cloud) instead of SQLite
-  serverExternalPackages: ["pdf-parse"],
+  serverExternalPackages: ["unpdf"],
 };
 
 export default nextConfig;

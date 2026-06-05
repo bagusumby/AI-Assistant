@@ -61,25 +61,21 @@ export async function POST(req: NextRequest) {
       status: "processing",
     });
 
-    // Extract text from PDF
-    const { PDFParse } = await import("pdf-parse");
-    const pdf = new PDFParse({ data: buffer });
-    const pdfResult = await pdf.getText();
+    // Extract text from PDF (unpdf: serverless/edge safe — no DOM dependencies)
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    const uint8 = new Uint8Array(buffer);
+    const pdfDoc = await getDocumentProxy(uint8);
+    const { text: rawPages } = await extractText(pdfDoc, { mergePages: false });
+
+    const pageTexts: string[] = Array.isArray(rawPages) ? rawPages : [String(rawPages)];
 
     const pages: { text: string; pageNumber: number }[] = [];
-    if (pdfResult.pages && pdfResult.pages.length > 0) {
-      for (let i = 0; i < pdfResult.pages.length; i++) {
-        const pageText = pdfResult.pages[i]?.text || "";
-        if (pageText.trim()) {
-          pages.push({ text: pageText.trim(), pageNumber: i + 1 });
-        }
+    for (let i = 0; i < pageTexts.length; i++) {
+      const pageText = (pageTexts[i] || "").trim();
+      if (pageText) {
+        pages.push({ text: pageText, pageNumber: i + 1 });
       }
     }
-
-    if (pages.length === 0 && pdfResult.text?.trim()) {
-      pages.push({ text: pdfResult.text.trim(), pageNumber: 1 });
-    }
-
     if (pages.length === 0) {
       await supabaseAdmin
         .from("uploaded_files")
