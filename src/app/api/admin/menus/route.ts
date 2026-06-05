@@ -6,9 +6,11 @@ import { v4 as uuid } from "uuid";
 const DEFAULT_MENUS = [
   { label: "Chat", path: "/chat", icon: "chat", sort_order: 1 },
   { label: "Upload", path: "/upload", icon: "upload", sort_order: 2 },
-  { label: "Manajemen User", path: "/admin/users", icon: "users", sort_order: 3 },
-  { label: "Manajemen Role", path: "/admin/roles", icon: "roles", sort_order: 4 },
-  { label: "Manajemen Bot", path: "/admin/bots", icon: "bots", sort_order: 5 },
+  { label: "Laporan Feedback", path: "/reports/feedback", icon: "feedback", sort_order: 3 },
+  { label: "Pertanyaan Tak Terjawab", path: "/reports/unanswered", icon: "unanswered", sort_order: 4 },
+  { label: "Manajemen User", path: "/admin/users", icon: "users", sort_order: 5 },
+  { label: "Manajemen Role", path: "/admin/roles", icon: "roles", sort_order: 6 },
+  { label: "Manajemen Bot", path: "/admin/bots", icon: "bots", sort_order: 7 },
 ];
 
 // GET - List all menus (auto-seed defaults if empty)

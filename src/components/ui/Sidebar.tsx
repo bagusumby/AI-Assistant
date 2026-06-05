@@ -56,6 +56,16 @@ function MenuIcon({ icon }: { icon: string }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
       </svg>
     ),
+    feedback: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15h2.25m8.024-9.75c.011.05.028.1.052.148.591 1.2.924 2.55.924 3.977a8.96 8.96 0 01-.999 4.125m.023-8.25c-.076-.365.183-.75.575-.75h.908c.889 0 1.713.518 1.972 1.368.339 1.11.521 2.287.521 3.507 0 1.553-.295 3.036-.831 4.398-.306.774-1.086 1.227-1.918 1.227h-1.053c-.472 0-.745-.556-.463-.943a6.8 6.8 0 001.04-3.682c0-1.17-.28-2.268-.771-3.243-.144-.282-.249-.566-.249-.857V5.11a.75.75 0 01.75-.75H9a.75.75 0 00-.75.75v.75m0 0v.75m0-.75H5.625c-.621 0-1.125.504-1.125 1.125v15c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25c0-.621-.504-1.125-1.125-1.125H9.75" />
+      </svg>
+    ),
+    unanswered: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+      </svg>
+    ),
     default: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -128,13 +138,21 @@ export function Sidebar({ user }: SidebarProps) {
           const isActive = pathname === menu.path || pathname.startsWith(menu.path + "/");
           const prevMenu = menus[index - 1];
           const isAdminSection = menu.path.startsWith("/admin");
+          const isReportSection = menu.path.startsWith("/reports");
           const prevIsAdminSection = prevMenu?.path.startsWith("/admin");
-          const showDivider = isAdminSection && !prevIsAdminSection;
+          const prevIsReportSection = prevMenu?.path.startsWith("/reports");
+          const showAdminDivider = isAdminSection && !prevIsAdminSection;
+          const showReportDivider = isReportSection && !prevIsReportSection;
           return (
             <div key={menu.id}>
-              {showDivider && (
+              {showAdminDivider && (
                 <div className="px-4 pt-3 pb-1">
                   <p className="text-[10px] uppercase tracking-widest text-gray-600 font-semibold">Administrasi</p>
+                </div>
+              )}
+              {showReportDivider && (
+                <div className="px-4 pt-3 pb-1">
+                  <p className="text-[10px] uppercase tracking-widest text-gray-600 font-semibold">Laporan</p>
                 </div>
               )}
               <Link

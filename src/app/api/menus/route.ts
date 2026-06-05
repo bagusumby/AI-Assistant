@@ -7,9 +7,11 @@ function getFallbackMenus(roleSlug: string | undefined) {
     return [
       { id: "1", label: "Chat", path: "/chat", icon: "chat", sort_order: 1 },
       { id: "2", label: "Upload", path: "/upload", icon: "upload", sort_order: 2 },
-      { id: "3", label: "Manajemen User", path: "/admin/users", icon: "users", sort_order: 3 },
-      { id: "4", label: "Manajemen Role", path: "/admin/roles", icon: "roles", sort_order: 4 },
-      { id: "5", label: "Manajemen Bot", path: "/admin/bots", icon: "bots", sort_order: 5 },
+      { id: "3", label: "Laporan Feedback", path: "/reports/feedback", icon: "feedback", sort_order: 3 },
+      { id: "4", label: "Pertanyaan Tak Terjawab", path: "/reports/unanswered", icon: "unanswered", sort_order: 4 },
+      { id: "5", label: "Manajemen User", path: "/admin/users", icon: "users", sort_order: 5 },
+      { id: "6", label: "Manajemen Role", path: "/admin/roles", icon: "roles", sort_order: 6 },
+      { id: "7", label: "Manajemen Bot", path: "/admin/bots", icon: "bots", sort_order: 7 },
     ];
   } else if (roleSlug === "user") {
     return [{ id: "1", label: "Chat", path: "/chat", icon: "chat", sort_order: 1 }];
@@ -18,6 +20,8 @@ function getFallbackMenus(roleSlug: string | undefined) {
     return [
       { id: "1", label: "Chat", path: "/chat", icon: "chat", sort_order: 1 },
       { id: "2", label: "Upload", path: "/upload", icon: "upload", sort_order: 2 },
+      { id: "3", label: "Laporan Feedback", path: "/reports/feedback", icon: "feedback", sort_order: 3 },
+      { id: "4", label: "Pertanyaan Tak Terjawab", path: "/reports/unanswered", icon: "unanswered", sort_order: 4 },
     ];
   }
 }
