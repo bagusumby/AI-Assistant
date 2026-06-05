@@ -7,6 +7,7 @@ import { useNavigationWarning } from "@/lib/useNavigationWarning";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  id?: string;
 }
 
 interface AiBot {
@@ -42,6 +43,165 @@ function TypingIndicator() {
       </span>
       <span className="text-gray-400 text-xs animate-pulse">{LOADING_TEXTS[textIndex]}</span>
     </span>
+  );
+}
+
+const FEEDBACK_TYPES: { value: string; label: string }[] = [
+  { value: "incomplete", label: "Jawaban tidak lengkap" },
+  { value: "incorrect", label: "Jawaban tidak akurat / salah" },
+  { value: "unclear", label: "Jawaban kurang jelas" },
+  { value: "not_relevant", label: "Tidak relevan dengan pertanyaan" },
+  { value: "outdated", label: "Informasi sudah tidak terkini" },
+  { value: "other", label: "Lainnya" },
+];
+
+interface FeedbackModalProps {
+  messageId: string | undefined;
+  sessionId: string | null;
+  botId: string;
+  onClose: () => void;
+}
+
+function FeedbackModal({ messageId, sessionId, botId, onClose }: FeedbackModalProps) {
+  const [feedbackType, setFeedbackType] = useState("");
+  const [feedbackMsg, setFeedbackMsg] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackType) { setError("Pilih tipe feedback terlebih dahulu"); return; }
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message_id: messageId || null,
+          session_id: sessionId,
+          bot_id: botId,
+          feedback_type: feedbackType,
+          message: feedbackMsg.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Gagal mengirim feedback");
+      }
+      setSubmitted(true);
+      setTimeout(onClose, 1800);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="glass border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4"
+      >
+        {submitted ? (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-white font-medium">Terima kasih atas feedback Anda!</p>
+            <p className="text-gray-400 text-sm text-center">Feedback Anda akan membantu kami meningkatkan kualitas jawaban.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15h2.25m8.024-9.75c.011.05.028.1.052.148.591 1.2.924 2.55.924 3.977a8.96 8.96 0 01-.999 4.125m.023-8.25c-.076-.365.183-.75.575-.75h.908c.889 0 1.713.518 1.972 1.368.339 1.11.521 2.287.521 3.507 0 1.553-.295 3.036-.831 4.398-.306.774-1.086 1.227-1.918 1.227h-1.053c-.472 0-.745-.556-.463-.943a6.8 6.8 0 001.04-3.682c0-1.17-.28-2.268-.771-3.243-.144-.282-.249-.566-.249-.857V5.11a.75.75 0 01.75-.75H9a.75.75 0 00-.75.75v.75m0 0v.75m0-.75H5.625c-.621 0-1.125.504-1.125 1.125v15c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25c0-.621-.504-1.125-1.125-1.125H9.75" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white text-sm">Berikan Feedback</h3>
+                  <p className="text-xs text-gray-400">Bantu kami meningkatkan jawaban AI</p>
+                </div>
+              </div>
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-300 transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <p className="text-xs text-gray-400 mb-2 font-medium">Apa masalah dengan jawaban ini? *</p>
+                <div className="space-y-2">
+                  {FEEDBACK_TYPES.map((ft) => (
+                    <label
+                      key={ft.value}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-all ${
+                        feedbackType === ft.value
+                          ? "border-indigo-500/60 bg-indigo-500/10 text-white"
+                          : "border-white/10 hover:border-white/20 text-gray-400"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="feedback_type"
+                        value={ft.value}
+                        checked={feedbackType === ft.value}
+                        onChange={() => setFeedbackType(ft.value)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                        feedbackType === ft.value ? "border-indigo-500 bg-indigo-500" : "border-gray-600"
+                      }`}>
+                        {feedbackType === ft.value && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <span className="text-sm">{ft.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 mb-1.5 block font-medium">Pesan tambahan (opsional)</label>
+                <textarea
+                  value={feedbackMsg}
+                  onChange={(e) => setFeedbackMsg(e.target.value)}
+                  placeholder="Jelaskan lebih detail tentang masalah ini..."
+                  rows={3}
+                  maxLength={500}
+                  className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-sm text-white placeholder-gray-600 transition-all"
+                />
+                <p className="text-right text-xs text-gray-600 mt-1">{feedbackMsg.length}/500</p>
+              </div>
+
+              {error && <p className="text-sm text-red-400">{error}</p>}
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:border-white/20 text-sm transition-all">
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-sm font-medium transition-all"
+                >
+                  {submitting ? "Mengirim..." : "Kirim Feedback"}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </motion.div>
+    </div>
   );
 }
 
@@ -117,6 +277,8 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<{ id: string; title: string; ai_bot_id?: string }[]>([]);
   const [allBots, setAllBots] = useState<AiBot[]>([]);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [feedbackTarget, setFeedbackTarget] = useState<{ messageId?: string; index: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -181,6 +343,13 @@ export default function ChatPage() {
     setSelectedBot(null);
   };
 
+  const handleCopy = (content: string, index: number) => {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    });
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading || !selectedBot) return;
 
@@ -224,6 +393,13 @@ export default function ChatPage() {
               if (data.done && data.sessionId) {
                 setSessionId(data.sessionId);
                 fetchSessions();
+                if (data.messageId) {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = { ...updated[updated.length - 1], id: data.messageId };
+                    return updated;
+                  });
+                }
               }
             } catch {}
           }
@@ -242,6 +418,17 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-full">
+      <AnimatePresence>
+        {feedbackTarget && selectedBot && (
+          <FeedbackModal
+            key="feedback-modal"
+            messageId={feedbackTarget.messageId}
+            sessionId={sessionId}
+            botId={selectedBot.id}
+            onClose={() => setFeedbackTarget(null)}
+          />
+        )}
+      </AnimatePresence>
       {/* Chat Sessions Sidebar */}
       <div className="w-56 border-r border-white/10 flex flex-col bg-gray-950/50">
         <div className="p-3">
@@ -319,12 +506,42 @@ export default function ChatPage() {
                         </svg>
                       </div>
                     )}
-                    <div className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                      msg.role === "user"
-                        ? "bg-indigo-600 text-white rounded-br-md"
-                        : "glass text-gray-200 rounded-bl-md"
-                    }`}>
-                      {msg.content || (loading && i === messages.length - 1 ? <TypingIndicator /> : "")}
+                    <div className="flex flex-col gap-1.5 max-w-[70%]">
+                      <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                        msg.role === "user"
+                          ? "bg-indigo-600 text-white rounded-br-md"
+                          : "glass text-gray-200 rounded-bl-md"
+                      }`}>
+                        {msg.content || (loading && i === messages.length - 1 ? <TypingIndicator /> : "")}
+                      </div>
+                      {msg.role === "assistant" && msg.content && !(loading && i === messages.length - 1) && (
+                        <div className="flex items-center gap-1 pl-1">
+                          <button
+                            onClick={() => handleCopy(msg.content, i)}
+                            title="Salin jawaban"
+                            className="p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/5 transition-all"
+                          >
+                            {copiedIndex === i ? (
+                              <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                              </svg>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setFeedbackTarget({ messageId: msg.id, index: i })}
+                            title="Berikan feedback negatif"
+                            className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15h2.25m8.024-9.75c.011.05.028.1.052.148.591 1.2.924 2.55.924 3.977a8.96 8.96 0 01-.999 4.125m.023-8.25c-.076-.365.183-.75.575-.75h.908c.889 0 1.713.518 1.972 1.368.339 1.11.521 2.287.521 3.507 0 1.553-.295 3.036-.831 4.398-.306.774-1.086 1.227-1.918 1.227h-1.053c-.472 0-.745-.556-.463-.943a6.8 6.8 0 001.04-3.682c0-1.17-.28-2.268-.771-3.243-.144-.282-.249-.566-.249-.857V5.11a.75.75 0 01.75-.75H9a.75.75 0 00-.75.75v.75m0 0v.75m0-.75H5.625c-.621 0-1.125.504-1.125 1.125v15c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25c0-.621-.504-1.125-1.125-1.125H9.75" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 ))}

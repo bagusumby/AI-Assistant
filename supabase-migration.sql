@@ -8,6 +8,8 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 2. Drop semua table dan function yang ada
+DROP TABLE IF EXISTS feedback_reports CASCADE;
+DROP TABLE IF EXISTS unanswered_questions CASCADE;
 DROP TABLE IF EXISTS role_menu_permissions CASCADE;
 DROP TABLE IF EXISTS menus CASCADE;
 DROP TABLE IF EXISTS ai_bots CASCADE;
@@ -259,3 +261,73 @@ VALUES (
 --   CREATE INDEX documents_embedding_idx ON documents
 --   USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 -- ============================================
+
+-- ============================================
+-- FEATURE: Feedback Report & Unanswered Questions
+-- Jalankan blok ini jika database sudah ada (addendum migration)
+-- ============================================
+
+-- Feedback Reports table
+CREATE TABLE feedback_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id UUID REFERENCES chat_messages(id) ON DELETE SET NULL,
+  session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  ai_bot_id UUID REFERENCES ai_bots(id) ON DELETE CASCADE,
+  feedback_type TEXT NOT NULL CHECK (feedback_type IN ('incomplete', 'incorrect', 'unclear', 'not_relevant', 'outdated', 'other')),
+  message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_bot ON feedback_reports(ai_bot_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback_reports(user_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback_reports(created_at DESC);
+
+ALTER TABLE feedback_reports DISABLE ROW LEVEL SECURITY;
+
+-- Unanswered Questions table
+CREATE TABLE unanswered_questions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  ai_bot_id UUID REFERENCES ai_bots(id) ON DELETE CASCADE,
+  question TEXT NOT NULL,
+  bot_response TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_unanswered_bot ON unanswered_questions(ai_bot_id);
+CREATE INDEX IF NOT EXISTS idx_unanswered_user ON unanswered_questions(user_id);
+CREATE INDEX IF NOT EXISTS idx_unanswered_created ON unanswered_questions(created_at DESC);
+
+ALTER TABLE unanswered_questions DISABLE ROW LEVEL SECURITY;
+
+-- Insert new menus (idempotent — skip if path already exists)
+INSERT INTO menus (label, path, icon, sort_order)
+SELECT 'Laporan Feedback', '/reports/feedback', 'feedback', 8
+WHERE NOT EXISTS (SELECT 1 FROM menus WHERE path = '/reports/feedback');
+
+INSERT INTO menus (label, path, icon, sort_order)
+SELECT 'Pertanyaan Tak Terjawab', '/reports/unanswered', 'unanswered', 9
+WHERE NOT EXISTS (SELECT 1 FROM menus WHERE path = '/reports/unanswered');
+
+-- Grant report menus to admin role
+INSERT INTO role_menu_permissions (role_id, menu_id)
+SELECT r.id, m.id FROM roles r, menus m
+WHERE r.name = 'admin'
+  AND m.path IN ('/reports/feedback', '/reports/unanswered')
+  AND NOT EXISTS (
+    SELECT 1 FROM role_menu_permissions rmp
+    WHERE rmp.role_id = r.id AND rmp.menu_id = m.id
+  );
+
+-- NOTE: Grant report menus to specific manager roles via the Roles management UI.
+-- Example for all manager roles:
+-- INSERT INTO role_menu_permissions (role_id, menu_id)
+-- SELECT r.id, m.id FROM roles r, menus m
+-- WHERE r.type = 'manager'
+--   AND m.path IN ('/reports/feedback', '/reports/unanswered')
+--   AND NOT EXISTS (
+--     SELECT 1 FROM role_menu_permissions rmp
+--     WHERE rmp.role_id = r.id AND rmp.menu_id = m.id
+--   );

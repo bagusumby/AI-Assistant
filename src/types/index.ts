@@ -81,3 +81,31 @@ export interface DocumentChunk {
   };
   similarity?: number;
 }
+
+export type FeedbackType = "incomplete" | "incorrect" | "unclear" | "not_relevant" | "outdated" | "other";
+
+export interface FeedbackReport {
+  id: string;
+  message_id?: string | null;
+  session_id: string;
+  user_id: string;
+  ai_bot_id: string;
+  feedback_type: FeedbackType;
+  message?: string | null;
+  created_at: string;
+  users?: { email: string; name: string };
+  ai_bots?: { id: string; name: string };
+  chat_messages?: { content: string } | null;
+}
+
+export interface UnansweredQuestion {
+  id: string;
+  session_id: string;
+  user_id: string;
+  ai_bot_id: string;
+  question: string;
+  bot_response: string;
+  created_at: string;
+  users?: { email: string; name: string };
+  ai_bots?: { id: string; name: string };
+}

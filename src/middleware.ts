@@ -45,6 +45,16 @@ export default auth((req) => {
     }
   }
 
+  // Report routes: admin or managers only
+  if (
+    pathname.startsWith("/reports") ||
+    pathname.startsWith("/api/reports")
+  ) {
+    if (role !== "admin" && roleType !== "manager") {
+      return NextResponse.redirect(new URL("/chat", req.url));
+    }
+  }
+
   return NextResponse.next();
 });
 

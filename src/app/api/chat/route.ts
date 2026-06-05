@@ -92,6 +92,12 @@ export async function POST(req: NextRequest) {
 
     const encoder = new TextEncoder();
     let fullResponse = "";
+    const assistantMessageId = uuid();
+
+    const UNANSWERED_PREFIXES = [
+      "Maaf, saya tidak menemukan informasi yang relevan",
+      "Maaf, saya tidak menemukan informasi tersebut",
+    ];
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -100,15 +106,28 @@ export async function POST(req: NextRequest) {
             fullResponse += chunk;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk, done: false })}\n\n`));
           }
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "", done: true, sources, sessionId: chatSessionId, botId })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "", done: true, sources, sessionId: chatSessionId, botId, messageId: assistantMessageId })}\n\n`));
 
           await supabaseAdmin.from("chat_messages").insert({
-            id: uuid(),
+            id: assistantMessageId,
             session_id: chatSessionId,
             user_id: userId,
             role: "assistant",
             content: fullResponse,
           });
+
+          // Auto-capture unanswered questions
+          const isUnanswered = UNANSWERED_PREFIXES.some((prefix) => fullResponse.startsWith(prefix));
+          if (isUnanswered) {
+            await supabaseAdmin.from("unanswered_questions").insert({
+              id: uuid(),
+              session_id: chatSessionId,
+              user_id: userId,
+              ai_bot_id: botId,
+              question: message,
+              bot_response: fullResponse,
+            });
+          }
         } catch {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Stream error", done: true })}\n\n`));
         }
