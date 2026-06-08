@@ -84,6 +84,8 @@ export interface DocumentChunk {
 
 export type FeedbackType = "incomplete" | "incorrect" | "unclear" | "not_relevant" | "outdated" | "other";
 
+export type PriorityLevel = "high" | "medium" | "low";
+
 export interface FeedbackReport {
   id: string;
   message_id?: string | null;
@@ -93,6 +95,10 @@ export interface FeedbackReport {
   feedback_type: FeedbackType;
   message?: string | null;
   created_at: string;
+  resolved_at?: string | null;
+  resolved_filename?: string | null;
+  resolved_answer?: string | null;
+  priority?: PriorityLevel | null;
   users?: { email: string; name: string };
   ai_bots?: { id: string; name: string };
   chat_messages?: { content: string } | null;
@@ -106,6 +112,10 @@ export interface UnansweredQuestion {
   question: string;
   bot_response: string;
   created_at: string;
+  resolved_at?: string | null;
+  resolved_filename?: string | null;
+  resolved_answer?: string | null;
+  priority?: PriorityLevel | null;
   users?: { email: string; name: string };
   ai_bots?: { id: string; name: string };
 }

@@ -276,12 +276,18 @@ CREATE TABLE feedback_reports (
   ai_bot_id UUID REFERENCES ai_bots(id) ON DELETE CASCADE,
   feedback_type TEXT NOT NULL CHECK (feedback_type IN ('incomplete', 'incorrect', 'unclear', 'not_relevant', 'outdated', 'other')),
   message TEXT,
+  resolved_at TIMESTAMPTZ DEFAULT NULL,
+  resolved_filename TEXT DEFAULT NULL,
+  resolved_answer TEXT DEFAULT NULL,
+  priority TEXT DEFAULT NULL CHECK (priority IN ('high', 'medium', 'low')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_feedback_bot ON feedback_reports(ai_bot_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback_reports(user_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback_reports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feedback_resolved ON feedback_reports(resolved_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback_reports(priority);
 
 ALTER TABLE feedback_reports DISABLE ROW LEVEL SECURITY;
 
@@ -293,12 +299,18 @@ CREATE TABLE unanswered_questions (
   ai_bot_id UUID REFERENCES ai_bots(id) ON DELETE CASCADE,
   question TEXT NOT NULL,
   bot_response TEXT NOT NULL,
+  resolved_at TIMESTAMPTZ DEFAULT NULL,
+  resolved_filename TEXT DEFAULT NULL,
+  resolved_answer TEXT DEFAULT NULL,
+  priority TEXT DEFAULT NULL CHECK (priority IN ('high', 'medium', 'low')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_unanswered_bot ON unanswered_questions(ai_bot_id);
 CREATE INDEX IF NOT EXISTS idx_unanswered_user ON unanswered_questions(user_id);
 CREATE INDEX IF NOT EXISTS idx_unanswered_created ON unanswered_questions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_unanswered_resolved ON unanswered_questions(resolved_at);
+CREATE INDEX IF NOT EXISTS idx_unanswered_priority ON unanswered_questions(priority);
 
 ALTER TABLE unanswered_questions DISABLE ROW LEVEL SECURITY;
 
@@ -331,3 +343,29 @@ WHERE r.name = 'admin'
 --     SELECT 1 FROM role_menu_permissions rmp
 --     WHERE rmp.role_id = r.id AND rmp.menu_id = m.id
 --   );
+
+-- ============================================
+-- ADDENDUM: Knowledge Base Management Feature
+-- Jalankan blok ini jika database sudah ada sebelumnya
+-- (kolom-kolom baru untuk fitur resolved, priority, dll)
+-- ============================================
+
+-- Tambah kolom resolved + priority pada unanswered_questions
+ALTER TABLE unanswered_questions
+  ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS resolved_filename TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS resolved_answer TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT NULL;
+
+-- Tambah kolom resolved + priority pada feedback_reports
+ALTER TABLE feedback_reports
+  ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS resolved_filename TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS resolved_answer TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT NULL;
+
+-- Index untuk performa query filter
+CREATE INDEX IF NOT EXISTS idx_unanswered_resolved ON unanswered_questions(resolved_at);
+CREATE INDEX IF NOT EXISTS idx_unanswered_priority ON unanswered_questions(priority);
+CREATE INDEX IF NOT EXISTS idx_feedback_resolved ON feedback_reports(resolved_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback_reports(priority);
