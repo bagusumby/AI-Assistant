@@ -119,3 +119,49 @@ export interface UnansweredQuestion {
   users?: { email: string; name: string };
   ai_bots?: { id: string; name: string };
 }
+
+export interface Topic {
+  id: string;
+  ai_bot_id: string;
+  name: string;
+  description?: string | null;
+  question_count: number;
+  sample_question?: string | null;
+  created_at: string;
+  ai_bots?: { id: string; name: string };
+}
+
+export interface TopicQuestion {
+  id: string;
+  topic_id: string;
+  session_id?: string | null;
+  user_id: string;
+  question: string;
+  similarity: number;
+  created_at: string;
+  users?: { email: string; name: string };
+}
+
+export interface QuestionCluster {
+  id: string;
+  ai_bot_id: string;
+  name: string;
+  description?: string | null;
+  question_count: number;
+  sample_questions: string[];
+  representative_question?: string | null;
+  analyzed_at?: string;
+  created_at: string;
+  ai_bots?: { id: string; name: string };
+}
+
+export interface ClusterItem {
+  id: string;
+  cluster_id: string;
+  question: string;
+  user_id: string;
+  session_id?: string | null;
+  message_created_at?: string | null;
+  created_at: string;
+  users?: { email: string; name: string };
+}

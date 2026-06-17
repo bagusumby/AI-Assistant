@@ -369,3 +369,132 @@ CREATE INDEX IF NOT EXISTS idx_unanswered_resolved ON unanswered_questions(resol
 CREATE INDEX IF NOT EXISTS idx_unanswered_priority ON unanswered_questions(priority);
 CREATE INDEX IF NOT EXISTS idx_feedback_resolved ON feedback_reports(resolved_at);
 CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback_reports(priority);
+
+-- ============================================
+-- FEATURE: Topik Populer (Topic Analytics)
+-- ============================================
+
+-- Topics table (topik-topik yang di-extract dari dokumen)
+CREATE TABLE IF NOT EXISTS topics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ai_bot_id UUID REFERENCES ai_bots(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  embedding VECTOR(2560),
+  question_count INT DEFAULT 0,
+  sample_question TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(ai_bot_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_topics_bot ON topics(ai_bot_id);
+CREATE INDEX IF NOT EXISTS idx_topics_count ON topics(question_count DESC);
+
+ALTER TABLE topics DISABLE ROW LEVEL SECURITY;
+
+-- Topic Questions (relasi pertanyaan user ↔ topik)
+CREATE TABLE IF NOT EXISTS topic_questions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  topic_id UUID REFERENCES topics(id) ON DELETE CASCADE,
+  session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
+  user_id UUID NOT NULL,
+  question TEXT NOT NULL,
+  similarity FLOAT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_topic_questions_topic ON topic_questions(topic_id);
+CREATE INDEX IF NOT EXISTS idx_topic_questions_user ON topic_questions(user_id);
+
+ALTER TABLE topic_questions DISABLE ROW LEVEL SECURITY;
+
+-- RPC Function: Match pertanyaan ke topik terdekat
+CREATE OR REPLACE FUNCTION match_topic(
+    query_embedding VECTOR(2560),
+    filter_ai_bot_id UUID,
+    match_threshold FLOAT DEFAULT 0.5
+)
+RETURNS TABLE (topic_id UUID, topic_name TEXT, similarity FLOAT)
+LANGUAGE sql STABLE AS $$
+    SELECT id, name, 1 - (embedding <=> query_embedding) AS similarity
+    FROM topics
+    WHERE ai_bot_id = filter_ai_bot_id
+      AND 1 - (embedding <=> query_embedding) >= match_threshold
+    ORDER BY embedding <=> query_embedding
+    LIMIT 1;
+$$;
+
+-- RPC Function: Increment topic question count
+CREATE OR REPLACE FUNCTION increment_topic_count(topic_id_param UUID)
+RETURNS VOID
+LANGUAGE sql AS $$
+    UPDATE topics SET question_count = question_count + 1 WHERE id = topic_id_param;
+$$;
+
+-- Insert menu "Topik Populer"
+INSERT INTO menus (label, path, icon, sort_order)
+SELECT 'Topik Populer', '/reports/topics', 'topics', 10
+WHERE NOT EXISTS (SELECT 1 FROM menus WHERE path = '/reports/topics');
+
+-- Grant to admin
+INSERT INTO role_menu_permissions (role_id, menu_id)
+SELECT r.id, m.id FROM roles r, menus m
+WHERE r.name = 'admin'
+  AND m.path = '/reports/topics'
+  AND NOT EXISTS (
+    SELECT 1 FROM role_menu_permissions rmp
+    WHERE rmp.role_id = r.id AND rmp.menu_id = m.id
+  );
+
+-- ============================================
+-- FEATURE: Klaster Pertanyaan (Question Clustering from user chat)
+-- ============================================
+
+-- Question Clusters table (hasil batch LLM grouping dari pertanyaan user)
+CREATE TABLE IF NOT EXISTS question_clusters (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ai_bot_id UUID REFERENCES ai_bots(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  question_count INT DEFAULT 0,
+  sample_questions JSONB DEFAULT '[]',
+  representative_question TEXT,
+  analyzed_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(ai_bot_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_clusters_bot ON question_clusters(ai_bot_id);
+CREATE INDEX IF NOT EXISTS idx_clusters_count ON question_clusters(question_count DESC);
+
+ALTER TABLE question_clusters DISABLE ROW LEVEL SECURITY;
+
+-- Cluster Items (pertanyaan user yang masuk ke cluster)
+CREATE TABLE IF NOT EXISTS cluster_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cluster_id UUID REFERENCES question_clusters(id) ON DELETE CASCADE,
+  question TEXT NOT NULL,
+  user_id UUID NOT NULL,
+  session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
+  message_created_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cluster_items_cluster ON cluster_items(cluster_id);
+
+ALTER TABLE cluster_items DISABLE ROW LEVEL SECURITY;
+
+-- Insert menu "Klaster Pertanyaan"
+INSERT INTO menus (label, path, icon, sort_order)
+SELECT 'Klaster Pertanyaan', '/reports/clusters', 'clusters', 11
+WHERE NOT EXISTS (SELECT 1 FROM menus WHERE path = '/reports/clusters');
+
+-- Grant to admin
+INSERT INTO role_menu_permissions (role_id, menu_id)
+SELECT r.id, m.id FROM roles r, menus m
+WHERE r.name = 'admin'
+  AND m.path = '/reports/clusters'
+  AND NOT EXISTS (
+    SELECT 1 FROM role_menu_permissions rmp
+    WHERE rmp.role_id = r.id AND rmp.menu_id = m.id
+  );

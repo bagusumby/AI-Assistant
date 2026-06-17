@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigationWarning } from "@/lib/useNavigationWarning";
+import QuickQuestions, { QuickQuestionsToggle } from "@/components/ui/QuickQuestions";
 
 interface Message {
   role: "user" | "assistant";
@@ -279,6 +280,7 @@ export default function ChatPage() {
   const [allBots, setAllBots] = useState<AiBot[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [feedbackTarget, setFeedbackTarget] = useState<{ messageId?: string; index: number } | null>(null);
+  const [showQuickQuestions, setShowQuickQuestions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -551,7 +553,68 @@ export default function ChatPage() {
 
             {/* Input */}
             <div className="p-4 border-t border-white/10">
-              <div className="flex gap-3 max-w-3xl mx-auto">
+              {/* Quick Questions Bubbles - always above input */}
+              {selectedBot && (
+                <QuickQuestions
+                  botId={selectedBot.id}
+                  visible={showQuickQuestions}
+                  onSelect={(question) => {
+                    setShowQuickQuestions(false);
+                    // Auto-send the quick question
+                    setMessages((prev) => [...prev, { role: "user", content: question }, { role: "assistant", content: "" }]);
+                    setLoading(true);
+                    fetch("/api/chat", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ message: question, sessionId, botId: selectedBot.id }),
+                    }).then(async (res) => {
+                      if (!res.ok) throw new Error("Failed");
+                      const reader = res.body?.getReader();
+                      const decoder = new TextDecoder();
+                      let assistantMsg = "";
+                      while (reader) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const text = decoder.decode(value);
+                        const lines = text.split("\n");
+                        for (const line of lines) {
+                          if (line.startsWith("data: ")) {
+                            try {
+                              const data = JSON.parse(line.slice(6));
+                              if (data.content) {
+                                assistantMsg += data.content;
+                                setMessages((prev) => {
+                                  const updated = [...prev];
+                                  updated[updated.length - 1] = { role: "assistant", content: assistantMsg };
+                                  return updated;
+                                });
+                              }
+                              if (data.done && data.sessionId) {
+                                setSessionId(data.sessionId);
+                                fetchSessions();
+                                if (data.messageId) {
+                                  setMessages((prev) => {
+                                    const updated = [...prev];
+                                    updated[updated.length - 1] = { ...updated[updated.length - 1], id: data.messageId };
+                                    return updated;
+                                  });
+                                }
+                              }
+                            } catch {}
+                          }
+                        }
+                      }
+                    }).catch(() => {
+                      setMessages((prev) => {
+                        const updated = [...prev];
+                        updated[updated.length - 1] = { role: "assistant", content: "Maaf, terjadi kesalahan." };
+                        return updated;
+                      });
+                    }).finally(() => setLoading(false));
+                  }}
+                />
+              )}
+              <div className="flex gap-2 max-w-3xl mx-auto">
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -561,6 +624,13 @@ export default function ChatPage() {
                   rows={1}
                   className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-sm text-white placeholder-gray-500 transition-all"
                 />
+                {/* Toggle Quick Questions */}
+                {selectedBot && (
+                  <QuickQuestionsToggle
+                    active={showQuickQuestions}
+                    onClick={() => setShowQuickQuestions((prev) => !prev)}
+                  />
+                )}
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}

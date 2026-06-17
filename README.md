@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Corporate AI Assistant Platform
+
+Corporate AI Assistant merupakan platform chatbot AI terpadu yang dirancang khusus untuk lingkungan perkantoran perusahaan ("Kantor A"). Platform ini menyediakan asisten virtual terspesialisasi untuk berbagai departemen (seperti IT Dev, Talent Acquisition / TA, Human Capital / HC, dan Compliance).
+
+## Tujuan Utama
+1. **Bagi Karyawan:** Mempermudah pencarian informasi operasional sehari-hari dengan interaksi secara *real-time* ke berbagai bot tanpa harus menunggu merespon dari staf terkait.
+2. **Bagi Manajer/Atasan:** Membantu mengidentifikasi *pain-points*, tren kendala operasional, dan celah informasi (*knowledge gap*) dari seluruh karyawan. Hal ini dicapai dengan menganalisa apa saja yang ditanyakan karyawan, mana yang bot belum punya jawabannya, dan bagaimana *feedback* mereka terhadap bot tersebut.
+
+## Fitur Utama
+
+### 🏢 Karyawan (End-User)
+- **Multi-Bot Selection:** Bebas memilih departemen bot yang ingin diajak berinteraksi (IT Dev, TA, HC, Compliance).
+- **Chat History:** Melihat riwayat percakapan sebelumnya.
+- **Feedback System:** Memberikan penilaian atau umpan balik pada jawaban AI.
+
+### 💼 Manajer (Admin / Supervisor)
+- **📊 Analytics Dashboard:** Statistik penggunaan bot, rating kesuksesan, dan *feedback* karyawan.
+- **❓ Unanswered Questions:** Laporan yang berisikan rincian pertanyaan karyawan yang *tidak dapat dijawab* oleh bot, sehingga manajer dapat menyusun solusi nyata atau memperbarui basis pengetahuan (Knowledge Base).
+- **📈 Populer Topics & Clustering:** Pengelompokkan / Klastering pertanyaan yang paling sering diajukan karyawan. Manajer bisa melihat topik mana yang sedang *trending* (contoh: pertanyaan tentang aturan cuti, kendala VPN).
+- **📚 Knowledge Base Management (Upload):** Fitur untuk mengunggah dan memperbarui dokumen Knowlegde Base (PDF/Doc) ke sistem agar bot semakin terupdate kedepannya.
+- **⚙️ Bot & Akses Management:** Mengelola Data Bot, *Roles*, *Users* dan *Menus* (Role-Based Access Control) pada panel dashboard.
+
+## Tech Stack
+- **Framework:** Next.js 15+ (App Router)
+- **Authentication:** NextAuth.js
+- **Database / Vector Store:** Supabase (menggunakan PostgreSQL + pgVector untuk kemampuan Retrieval-Augmented Generation / RAG)
+- **AI Processing:** Integrasi AI Tools (Vector Store, Text Splitter, Embedding Retrieval)
+- **Styling:** TailwindCSS
 
 ## Getting Started
 
-First, run the development server:
+1. **Clone & Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+2. **Environment Setup**
+   Buat file `.env` dan lengkapi konfigurasi variabel yang dibutuhkan (seperti URL/Key Supabase, OpenAI/LLM API Keys, dan NextAuth Secret).
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. **Database Migration**
+   Jalankan script SQL `supabase-migration.sql` pada koneksi Supabase/PostgreSQL anda untuk membuat skema tabel (termasuk fitur pgVector dan RAG).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4. **Run the Server**
+   ```bash
+   npm run dev
+   ```
+   Buka [http://localhost:3000](http://localhost:3000).
