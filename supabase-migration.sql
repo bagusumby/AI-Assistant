@@ -255,6 +255,14 @@ VALUES (
   (SELECT id FROM roles WHERE name = 'admin')
 );
 
+-- Seed Manager Users (password untuk semua: @Asdasd123)
+INSERT INTO users (name, email, password, role, role_id)
+VALUES 
+  ('TA Manager', 'tamanager@mail.com', '$2b$10$tiHbc8HNitf8D3BQdNYqme14.NqjgZdMn6.ISrsqzi0zpFm21SQta', 'ta_manager', (SELECT id FROM roles WHERE name = 'ta_manager')),
+  ('IT Dev Manager', 'itdevmanager@mail.com', '$2b$10$tiHbc8HNitf8D3BQdNYqme14.NqjgZdMn6.ISrsqzi0zpFm21SQta', 'it_dev_manager', (SELECT id FROM roles WHERE name = 'it_dev_manager')),
+  ('HC Manager', 'hcmanager@mail.com', '$2b$10$tiHbc8HNitf8D3BQdNYqme14.NqjgZdMn6.ISrsqzi0zpFm21SQta', 'hc_manager', (SELECT id FROM roles WHERE name = 'hc_manager')),
+  ('Compliance Manager', 'compliancemanager@mail.com', '$2b$10$tiHbc8HNitf8D3BQdNYqme14.NqjgZdMn6.ISrsqzi0zpFm21SQta', 'compliance_manager', (SELECT id FROM roles WHERE name = 'compliance_manager'));
+
 -- ============================================
 -- NOTES:
 -- - IVFFlat index untuk vector search (jalankan SETELAH ada ~100+ rows):
