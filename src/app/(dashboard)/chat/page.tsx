@@ -509,7 +509,7 @@ export default function ChatPage() {
                     <div className="flex flex-col gap-1.5 max-w-[70%]">
                       <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                         msg.role === "user"
-                          ? "bg-indigo-600 text-white rounded-br-md"
+                            ? "chat-user-bubble bg-indigo-600 text-white rounded-br-md"
                           : "glass text-gray-200 rounded-bl-md"
                       }`}>
                         {msg.content || (loading && i === messages.length - 1 ? <TypingIndicator /> : "")}

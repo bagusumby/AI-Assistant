@@ -13,7 +13,7 @@ export default auth((req) => {
     if (session && (pathname === "/login" || pathname === "/register")) {
       let redirectUrl = "/chat";
       if (session.user?.role === "admin") redirectUrl = "/admin";
-      else if (session.user?.roleType === "manager") redirectUrl = "/upload";
+      else if (session.user?.roleType === "manager") redirectUrl = "/reports/analysis";
       return NextResponse.redirect(new URL(redirectUrl, req.url));
     }
     return NextResponse.next();

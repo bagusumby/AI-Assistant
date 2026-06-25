@@ -7,6 +7,9 @@ export default async function Home() {
     if (session.user.role === "admin") {
       redirect("/admin");
     }
+    if (session.user.roleType === "manager") {
+      redirect("/reports/analysis");
+    }
     redirect("/chat");
   }
   redirect("/login");
