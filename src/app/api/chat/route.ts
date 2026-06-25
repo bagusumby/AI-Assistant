@@ -81,6 +81,9 @@ export async function POST(req: NextRequest) {
     .order("created_at", { ascending: true })
     .limit(20);
 
+  const ragStartTime = Date.now();
+  let firstTokenMs: number | null = null;
+
   try {
     const { generator, sources } = await ragChat(
       message,
@@ -103,6 +106,9 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         try {
           for await (const chunk of generator) {
+            if (firstTokenMs === null) {
+              firstTokenMs = Date.now() - ragStartTime;
+            }
             fullResponse += chunk;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk, done: false })}\n\n`));
           }
@@ -127,6 +133,23 @@ export async function POST(req: NextRequest) {
               question: message,
               bot_response: fullResponse,
             });
+          }
+
+          // Save response metric (non-critical, wrapped in its own try-catch)
+          try {
+            await supabaseAdmin.from("response_metrics").insert({
+              id: uuid(),
+              session_id: chatSessionId,
+              user_id: userId,
+              ai_bot_id: botId,
+              assistant_message_id: assistantMessageId,
+              sources_count: sources.length,
+              was_unanswered: isUnanswered,
+              first_token_ms: firstTokenMs,
+              total_response_ms: Date.now() - ragStartTime,
+            });
+          } catch {
+            // Metric insert failure is non-critical
           }
         } catch {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Stream error", done: true })}\n\n`));

@@ -18,6 +18,7 @@ function getFallbackMenus(roleSlug: string | undefined) {
   } else {
     // Manager fallback
     return [
+      { id: "0", label: "Dashboard Reporting Analysis", path: "/reports/analysis", icon: "chart", sort_order: 0 },
       { id: "1", label: "Chat", path: "/chat", icon: "chat", sort_order: 1 },
       { id: "2", label: "Upload", path: "/upload", icon: "upload", sort_order: 2 },
       { id: "3", label: "Laporan Feedback", path: "/reports/feedback", icon: "feedback", sort_order: 3 },

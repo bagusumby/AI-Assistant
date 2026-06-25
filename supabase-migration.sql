@@ -377,3 +377,51 @@ CREATE INDEX IF NOT EXISTS idx_unanswered_resolved ON unanswered_questions(resol
 CREATE INDEX IF NOT EXISTS idx_unanswered_priority ON unanswered_questions(priority);
 CREATE INDEX IF NOT EXISTS idx_feedback_resolved ON feedback_reports(resolved_at);
 CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback_reports(priority);
+
+-- ============================================
+-- ADDENDUM: Manager Reporting Analytics Dashboard
+-- Jalankan blok ini untuk menambahkan tabel metrik respons bot
+-- dan mengkonfigurasi menu dashboard untuk manager
+-- ============================================
+
+-- Tabel metrik waktu respons bot (per pesan)
+CREATE TABLE IF NOT EXISTS response_metrics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  ai_bot_id UUID REFERENCES ai_bots(id) ON DELETE CASCADE,
+  assistant_message_id UUID,
+  sources_count INTEGER NOT NULL DEFAULT 0,
+  was_unanswered BOOLEAN NOT NULL DEFAULT false,
+  first_token_ms INTEGER,
+  total_response_ms INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_response_metrics_bot_created
+  ON response_metrics(ai_bot_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_response_metrics_user
+  ON response_metrics(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_response_metrics_session
+  ON response_metrics(session_id);
+
+-- Seed: Tambah menu Dashboard Reporting Analysis dan assign ke semua manager role
+DO $$
+DECLARE
+  new_menu_id UUID;
+BEGIN
+  SELECT id INTO new_menu_id FROM menus WHERE path = '/reports/analysis' LIMIT 1;
+  IF new_menu_id IS NULL THEN
+    new_menu_id := gen_random_uuid();
+    INSERT INTO menus (id, label, path, icon, sort_order)
+    VALUES (new_menu_id, 'Dashboard Reporting Analysis', '/reports/analysis', 'chart', 0);
+  END IF;
+  INSERT INTO role_menu_permissions (id, role_id, menu_id)
+  SELECT gen_random_uuid(), r.id, new_menu_id
+  FROM roles r
+  WHERE r.type = 'manager'
+  AND NOT EXISTS (
+    SELECT 1 FROM role_menu_permissions rmp
+    WHERE rmp.role_id = r.id AND rmp.menu_id = new_menu_id
+  );
+END $$;
