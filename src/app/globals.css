@@ -3,17 +3,32 @@
 :root {
   --accent: #6366f1;
   --accent-light: #818cf8;
+  --app-bg: #030712;
+  --app-text: #f3f4f6;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+html.light {
+  --app-bg: #f6f8fc;
+  --app-text: #0f172a;
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(15, 23, 42, 0.12);
 }
 
 @layer base {
   body {
-    @apply bg-gray-950 text-gray-100;
+    background-color: var(--app-bg);
+    color: var(--app-text);
+    transition: background-color 180ms ease, color 180ms ease;
   }
 }
 
 @layer utilities {
   .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    backdrop-filter: blur(16px);
   }
   .glass-hover {
     @apply hover:bg-white/10 hover:border-white/20 transition-all duration-300;
@@ -29,6 +44,68 @@
   }
 }
 
+/* Global light-mode utility overrides for existing pages */
+html.light .bg-gray-950 { background-color: #f6f8fc !important; }
+html.light .bg-gray-900 { background-color: #edf2ff !important; }
+html.light .bg-gray-800 { background-color: #e7ecf8 !important; }
+html.light .bg-gray-950\/30 { background-color: rgba(15, 23, 42, 0.06) !important; }
+html.light .bg-gray-950\/40 { background-color: rgba(15, 23, 42, 0.08) !important; }
+html.light .bg-gray-950\/50 { background-color: rgba(15, 23, 42, 0.1) !important; }
+html.light .bg-gray-950\/60 { background-color: rgba(15, 23, 42, 0.12) !important; }
+
+html.light .text-white { color: #0f172a !important; }
+html.light .text-gray-100 { color: #0f172a !important; }
+html.light .text-gray-200 { color: #1e293b !important; }
+html.light .text-gray-300 { color: #334155 !important; }
+html.light .text-gray-400 { color: #475569 !important; }
+html.light .text-gray-500 { color: #64748b !important; }
+html.light .text-gray-600 { color: #64748b !important; }
+
+html.light .border-white\/10 { border-color: rgba(15, 23, 42, 0.12) !important; }
+html.light .border-white\/20 { border-color: rgba(15, 23, 42, 0.16) !important; }
+html.light .bg-white\/5 { background-color: rgba(15, 23, 42, 0.04) !important; }
+html.light .bg-white\/10 { background-color: rgba(15, 23, 42, 0.08) !important; }
+
+/* Light-mode accent tuning: soften indigo/purple for better harmony */
+html.light .text-indigo-300,
+html.light .text-indigo-400,
+html.light .text-indigo-500 { color: #3557c8 !important; }
+
+html.light .text-purple-300,
+html.light .text-purple-400,
+html.light .text-purple-500 { color: #7b4ab5 !important; }
+
+html.light .bg-indigo-500\/10 { background-color: rgba(53, 87, 200, 0.12) !important; }
+html.light .bg-indigo-500\/20 { background-color: rgba(53, 87, 200, 0.18) !important; }
+html.light .bg-indigo-500\/30 { background-color: rgba(53, 87, 200, 0.24) !important; }
+
+html.light .bg-purple-500\/10 { background-color: rgba(123, 74, 181, 0.12) !important; }
+html.light .bg-purple-500\/20 { background-color: rgba(123, 74, 181, 0.18) !important; }
+html.light .bg-purple-500\/30 { background-color: rgba(123, 74, 181, 0.24) !important; }
+
+html.light .border-indigo-500\/20 { border-color: rgba(53, 87, 200, 0.28) !important; }
+html.light .border-indigo-500\/30 { border-color: rgba(53, 87, 200, 0.34) !important; }
+html.light .border-purple-500\/20 { border-color: rgba(123, 74, 181, 0.28) !important; }
+html.light .border-purple-500\/30 { border-color: rgba(123, 74, 181, 0.34) !important; }
+
+html.light .gradient-text {
+  background-image: linear-gradient(90deg, #2f64d6, #5b6ad6, #2a98c9);
+}
+
+html.light .glow {
+  box-shadow: 0 0 14px rgba(53, 87, 200, 0.14), 0 0 36px rgba(123, 74, 181, 0.08);
+}
+
+html.light .glow-sm {
+  box-shadow: 0 0 8px rgba(53, 87, 200, 0.14);
+}
+
+/* Chat user bubble in light mode: keep high contrast and softer violet */
+html.light .chat-user-bubble {
+  background: linear-gradient(135deg, #5f55dc 0%, #6b5be4 55%, #7763eb 100%) !important;
+  color: #ffffff !important;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -42,6 +119,14 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.2);
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.32);
 }
 
 /* Animations */

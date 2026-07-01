@@ -104,6 +104,76 @@ export interface FeedbackReport {
   chat_messages?: { content: string } | null;
 }
 
+export interface ResponseTimeRecord {
+  id: string;
+  created_at: string;
+  total_response_ms: number;
+  first_token_ms: number | null;
+  sources_count: number;
+  was_unanswered: boolean;
+}
+
+export interface ResponseMetric {
+  id: string;
+  session_id: string;
+  user_id: string;
+  ai_bot_id: string;
+  assistant_message_id?: string | null;
+  sources_count: number;
+  was_unanswered: boolean;
+  first_token_ms?: number | null;
+  total_response_ms?: number | null;
+  created_at: string;
+}
+
+export interface AnalyticsSummary {
+  totalMessages: number;
+  totalFeedback: number;
+  totalUnanswered: number;
+  avgResponseMs: number | null;
+  p95ResponseMs: number | null;
+}
+
+export interface TrafficPoint {
+  label: string;
+  count: number;
+}
+
+export interface HourlyTrafficPoint {
+  hour: number;
+  label: string;
+  count: number;
+}
+
+export interface ResponseTimePoint {
+  label: string;
+  avgMs: number;
+  p95Ms: number | null;
+}
+
+export interface TopUser {
+  userId: string;
+  name: string;
+  email: string;
+  count: number;
+}
+
+export interface AnalyticsData {
+  summary: AnalyticsSummary;
+  responseTimeSeries: ResponseTimePoint[];
+  hourlyTraffic: HourlyTrafficPoint[];
+  dailyTraffic: TrafficPoint[];
+  weeklyTraffic: TrafficPoint[];
+  monthlyTraffic: TrafficPoint[];
+  topQuestioners: TopUser[];
+  topFeedbackUsers: TopUser[];
+  topUnansweredUsers: TopUser[];
+  responseTimeDetail: ResponseTimeRecord[];
+  botName: string;
+  from: string;
+  to: string;
+}
+
 export interface UnansweredQuestion {
   id: string;
   session_id: string;

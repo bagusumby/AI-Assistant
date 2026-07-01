@@ -82,6 +82,9 @@ export async function POST(req: NextRequest) {
     .order("created_at", { ascending: true })
     .limit(20);
 
+  const ragStartTime = Date.now();
+  let firstTokenMs: number | null = null;
+
   try {
     const { generator, sources } = await ragChat(
       message,
@@ -104,6 +107,9 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         try {
           for await (const chunk of generator) {
+            if (firstTokenMs === null) {
+              firstTokenMs = Date.now() - ragStartTime;
+            }
             fullResponse += chunk;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk, done: false })}\n\n`));
           }
@@ -130,7 +136,24 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // --- Topic classification (non-blocking, best-effort) ---
+          // Save response metric (non-critical, wrapped in its own try-catch)
+          try {
+            await supabaseAdmin.from("response_metrics").insert({
+              id: uuid(),
+              session_id: chatSessionId,
+              user_id: userId,
+              ai_bot_id: botId,
+              assistant_message_id: assistantMessageId,
+              sources_count: sources.length,
+              was_unanswered: isUnanswered,
+              first_token_ms: firstTokenMs,
+              total_response_ms: Date.now() - ragStartTime,
+            });
+          } catch {
+            // Metric insert failure is non-critical
+          }
+
+          // Topic classification for clustering (non-critical, best-effort)
           try {
             const questionEmbedding = await generateQueryEmbedding(message);
             const { data: matchedTopic } = await supabaseAdmin.rpc("match_topic", {
@@ -141,7 +164,6 @@ export async function POST(req: NextRequest) {
 
             if (matchedTopic && matchedTopic.length > 0) {
               const topMatch = matchedTopic[0];
-              // Insert question into topic_questions
               await supabaseAdmin.from("topic_questions").insert({
                 id: uuid(),
                 topic_id: topMatch.topic_id,
@@ -150,11 +172,11 @@ export async function POST(req: NextRequest) {
                 question: message,
                 similarity: topMatch.similarity,
               });
-              // Increment topic count
+
               await supabaseAdmin.rpc("increment_topic_count", { topic_id_param: topMatch.topic_id });
             }
           } catch {
-            // Non-critical: topic classification failure should not affect chat
+            // Topic classification failure is non-critical
           }
         } catch {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Stream error", done: true })}\n\n`));

@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth";
 import { generateEmbeddings } from "@/lib/ai";
 import { addDocuments, deleteByFilename } from "@/lib/vectorstore";
 import { supabaseAdmin } from "@/lib/supabase";
+import { sendUnansweredResolvedEmail, sendFeedbackResolvedEmail } from "@/lib/email";
+
+const APP_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -92,17 +95,79 @@ export async function POST(req: NextRequest) {
     };
 
     if (sourceType === "unanswered" && sourceId) {
+      const { data: src } = await supabaseAdmin
+        .from("unanswered_questions")
+        .select("user_id")
+        .eq("id", sourceId)
+        .single();
+
       await supabaseAdmin
         .from("unanswered_questions")
         .update(resolveData)
         .eq("id", sourceId);
+
+      // Fire-and-forget: notify user via email
+      if (src?.user_id) {
+        const userId = src.user_id;
+        const capturedQuestion = question.trim();
+        const capturedAnswer = answer.trim();
+        const capturedBotName = bot.name;
+        (async () => {
+          const { data: user } = await supabaseAdmin
+            .from("users")
+            .select("email, name")
+            .eq("id", userId)
+            .single();
+          if (!user?.email) return;
+          await sendUnansweredResolvedEmail({
+            to: user.email,
+            userName: user.name || user.email,
+            question: capturedQuestion,
+            answer: capturedAnswer,
+            botName: capturedBotName,
+            appUrl: APP_URL,
+          });
+        })().catch((err) => console.error("[Email] sendUnansweredResolvedEmail failed:", err));
+      }
     }
 
     if (sourceType === "feedback" && sourceId) {
+      const { data: src } = await supabaseAdmin
+        .from("feedback_reports")
+        .select("user_id, message, feedback_type")
+        .eq("id", sourceId)
+        .single();
+
       await supabaseAdmin
         .from("feedback_reports")
         .update(resolveData)
         .eq("id", sourceId);
+
+      // Fire-and-forget: notify user via email
+      if (src?.user_id) {
+        const userId = src.user_id;
+        const capturedFeedbackMessage = src.message ?? null;
+        const capturedFeedbackType = src.feedback_type ?? null;
+        const capturedAnswer = answer.trim();
+        const capturedBotName = bot.name;
+        (async () => {
+          const { data: user } = await supabaseAdmin
+            .from("users")
+            .select("email, name")
+            .eq("id", userId)
+            .single();
+          if (!user?.email) return;
+          await sendFeedbackResolvedEmail({
+            to: user.email,
+            userName: user.name || user.email,
+            feedbackMessage: capturedFeedbackMessage,
+            feedbackType: capturedFeedbackType,
+            answer: capturedAnswer,
+            botName: capturedBotName,
+            appUrl: APP_URL,
+          });
+        })().catch((err) => console.error("[Email] sendFeedbackResolvedEmail failed:", err));
+      }
     }
 
     return NextResponse.json({
@@ -118,7 +183,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH: Mark questions as resolved without uploading FAQ (for similar questions)
+// PATCH: Mark questions as resolved without uploading FAQ (for similar questions / bulk action)
 export async function PATCH(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -143,6 +208,16 @@ export async function PATCH(req: NextRequest) {
 
     const table = sourceType === "feedback" ? "feedback_reports" : "unanswered_questions";
 
+    // Fetch records before update to capture data needed for email
+    const selectFields = sourceType === "feedback"
+      ? "id, user_id, message, feedback_type, ai_bot_id"
+      : "id, user_id, question, ai_bot_id";
+
+    const { data: records } = await supabaseAdmin
+      .from(table)
+      .select(selectFields)
+      .in("id", ids);
+
     const { error } = await supabaseAdmin
       .from(table)
       .update({
@@ -154,6 +229,61 @@ export async function PATCH(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Fire-and-forget: send email notifications for each resolved record
+    if (records && records.length > 0) {
+      const capturedRecords = (records as unknown) as Array<{
+        id: string;
+        user_id: string;
+        ai_bot_id: string;
+        question?: string;
+        message?: string | null;
+        feedback_type?: string | null;
+      }>;
+      const capturedAnswer = resolvedAnswer || null;
+      const capturedSourceType = sourceType;
+
+      (async () => {
+        const userIds = [...new Set(capturedRecords.map((r) => r.user_id).filter(Boolean))];
+        const botIds = [...new Set(capturedRecords.map((r) => r.ai_bot_id).filter(Boolean))];
+
+        const [{ data: usersData }, { data: botsData }] = await Promise.all([
+          supabaseAdmin.from("users").select("id, email, name").in("id", userIds),
+          supabaseAdmin.from("ai_bots").select("id, name").in("id", botIds),
+        ]);
+
+        const usersMap = Object.fromEntries((usersData || []).map((u) => [u.id, u]));
+        const botsMap = Object.fromEntries((botsData || []).map((b) => [b.id, b]));
+
+        for (const record of capturedRecords) {
+          const user = usersMap[record.user_id];
+          if (!user?.email) continue;
+          const bot = botsMap[record.ai_bot_id];
+          const botName = bot?.name || "AI Assistant";
+
+          if (capturedSourceType === "unanswered") {
+            await sendUnansweredResolvedEmail({
+              to: user.email,
+              userName: user.name || user.email,
+              question: record.question || "",
+              answer: capturedAnswer,
+              botName,
+              appUrl: APP_URL,
+            });
+          } else {
+            await sendFeedbackResolvedEmail({
+              to: user.email,
+              userName: user.name || user.email,
+              feedbackMessage: record.message,
+              feedbackType: record.feedback_type,
+              answer: capturedAnswer,
+              botName,
+              appUrl: APP_URL,
+            });
+          }
+        }
+      })().catch((err) => console.error("[Email] Bulk notification failed:", err));
     }
 
     return NextResponse.json({ success: true, resolved: ids.length });
