@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 import { ragChat } from "@/lib/rag";
+import { generateQueryEmbedding } from "@/lib/ai";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
@@ -150,6 +151,32 @@ export async function POST(req: NextRequest) {
             });
           } catch {
             // Metric insert failure is non-critical
+          }
+
+          // Topic classification for clustering (non-critical, best-effort)
+          try {
+            const questionEmbedding = await generateQueryEmbedding(message);
+            const { data: matchedTopic } = await supabaseAdmin.rpc("match_topic", {
+              query_embedding: JSON.stringify(questionEmbedding),
+              filter_ai_bot_id: botId,
+              match_threshold: 0.5,
+            });
+
+            if (matchedTopic && matchedTopic.length > 0) {
+              const topMatch = matchedTopic[0];
+              await supabaseAdmin.from("topic_questions").insert({
+                id: uuid(),
+                topic_id: topMatch.topic_id,
+                session_id: chatSessionId,
+                user_id: userId,
+                question: message,
+                similarity: topMatch.similarity,
+              });
+
+              await supabaseAdmin.rpc("increment_topic_count", { topic_id_param: topMatch.topic_id });
+            }
+          } catch {
+            // Topic classification failure is non-critical
           }
         } catch {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Stream error", done: true })}\n\n`));
