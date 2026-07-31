@@ -5,6 +5,10 @@ const OLLAMA_TOKEN = process.env.OLLAMA_BEARER_TOKEN || process.env.NEXT_PUBLIC_
 const EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL || "qwen3-embedding:4b";
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+  if (!OLLAMA_BASE_URL) {
+    throw new Error("OLLAMA_BASE_URL belum diset di environment variables server");
+  }
+
   // Process in batches of 20 (same as Python backend)
   const batchSize = 20;
   const allEmbeddings: number[][] = [];
@@ -12,17 +16,24 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize);
 
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${OLLAMA_TOKEN}`,
-      },
-      body: JSON.stringify({
-        model: EMBEDDING_MODEL,
-        input: batch,
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OLLAMA_TOKEN}`,
+        },
+        body: JSON.stringify({
+          model: EMBEDDING_MODEL,
+          input: batch,
+        }),
+      });
+    } catch (fetchError: unknown) {
+      const cause = fetchError instanceof Error && fetchError.cause ? ` (${String(fetchError.cause)})` : "";
+      const msg = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      throw new Error(`Tidak dapat terhubung ke Ollama di ${OLLAMA_BASE_URL}: ${msg}${cause}`);
+    }
 
     if (!response.ok) {
       const err = await response.text();
