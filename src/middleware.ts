@@ -19,6 +19,12 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // Response survey: public form + its APIs (not linked anywhere, URL-only access).
+  // /response/config and /response/dashboard still require login below + admin check in-page.
+  if (pathname === "/response" || pathname.startsWith("/api/response")) {
+    return NextResponse.next();
+  }
+
   // Protected routes
   if (!session) {
     return NextResponse.redirect(new URL("/login", req.url));

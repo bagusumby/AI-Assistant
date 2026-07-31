@@ -235,3 +235,52 @@ export interface ClusterItem {
   created_at: string;
   users?: { email: string; name: string };
 }
+
+export type ResponseQuestionType = "text" | "scale";
+
+export interface ResponseSection {
+  id: string;
+  title: string;
+  description?: string | null;
+  sort_order: number;
+  created_at?: string;
+}
+
+export interface ResponseQuestion {
+  id: string;
+  section_id: string;
+  question_text: string;
+  question_type: ResponseQuestionType;
+  scale_min?: number | null;
+  scale_max?: number | null;
+  scale_min_label?: string | null;
+  scale_max_label?: string | null;
+  is_required: boolean;
+  sort_order: number;
+  created_at?: string;
+}
+
+export interface ResponseSectionWithQuestions extends ResponseSection {
+  response_questions: ResponseQuestion[];
+}
+
+export interface ResponseSubmission {
+  id: string;
+  created_at: string;
+}
+
+export interface ResponseAnswer {
+  id: string;
+  submission_id: string;
+  question_id: string;
+  answer_text?: string | null;
+  answer_value?: number | null;
+  created_at?: string;
+}
+
+export interface ResponseSubmissionWithAnswers extends ResponseSubmission {
+  response_answers: (ResponseAnswer & {
+    response_questions?: { question_text: string; question_type: ResponseQuestionType } | null;
+  })[];
+}
+

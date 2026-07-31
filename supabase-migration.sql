@@ -398,6 +398,92 @@ CREATE TABLE IF NOT EXISTS topics (
 CREATE INDEX IF NOT EXISTS idx_topics_bot ON topics(ai_bot_id);
 CREATE INDEX IF NOT EXISTS idx_topics_count ON topics(question_count DESC);
 
+-- ============================================
+-- FEATURE: Response Survey (skala kepuasan responden - /response)
+-- Halaman ini tidak ada di menu sidebar, hanya diakses via URL langsung.
+-- ============================================
+
+-- Section/kelompok pertanyaan (mis. "Informasi Pribadi", "Kemudahan Pengguna")
+CREATE TABLE IF NOT EXISTS response_sections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Pertanyaan survey (dikelola admin via /response/config), dikelompokkan per section
+CREATE TABLE IF NOT EXISTS response_questions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_id UUID REFERENCES response_sections(id) ON DELETE CASCADE,
+  question_text TEXT NOT NULL,
+  question_type TEXT NOT NULL DEFAULT 'text' CHECK (question_type IN ('text', 'scale')),
+  scale_min INT DEFAULT 1,
+  scale_max INT DEFAULT 5,
+  scale_min_label TEXT,
+  scale_max_label TEXT,
+  is_required BOOLEAN DEFAULT true,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Satu submission = satu responden mengisi form
+CREATE TABLE IF NOT EXISTS response_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Jawaban per pertanyaan per submission
+CREATE TABLE IF NOT EXISTS response_answers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  submission_id UUID REFERENCES response_submissions(id) ON DELETE CASCADE,
+  question_id UUID REFERENCES response_questions(id) ON DELETE CASCADE,
+  answer_text TEXT,
+  answer_value INT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tambah kolom section_id jika tabel response_questions sudah ada sebelumnya (addendum)
+-- Harus dijalankan SEBELUM index di bawah dibuat, karena index memakai kolom ini
+ALTER TABLE response_questions ADD COLUMN IF NOT EXISTS section_id UUID REFERENCES response_sections(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_response_sections_order ON response_sections(sort_order);
+CREATE INDEX IF NOT EXISTS idx_response_questions_section ON response_questions(section_id);
+CREATE INDEX IF NOT EXISTS idx_response_questions_order ON response_questions(sort_order);
+CREATE INDEX IF NOT EXISTS idx_response_answers_submission ON response_answers(submission_id);
+CREATE INDEX IF NOT EXISTS idx_response_answers_question ON response_answers(question_id);
+
+ALTER TABLE response_sections DISABLE ROW LEVEL SECURITY;
+ALTER TABLE response_questions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE response_submissions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE response_answers DISABLE ROW LEVEL SECURITY;
+
+-- Seed sections + pertanyaan default (hanya jika tabel masih kosong)
+DO $$
+DECLARE
+  sec_info UUID;
+  sec_usability UUID;
+  sec_performance UUID;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM response_sections) THEN
+    INSERT INTO response_sections (title, description, sort_order) VALUES
+      ('Informasi Pribadi', 'Data diri responden', 1)
+      RETURNING id INTO sec_info;
+    INSERT INTO response_sections (title, description, sort_order) VALUES
+      ('Kemudahan Pengguna', 'Penilaian kemudahan penggunaan sistem', 2)
+      RETURNING id INTO sec_usability;
+    INSERT INTO response_sections (title, description, sort_order) VALUES
+      ('Kinerja Sistem', 'Penilaian kinerja dan performa sistem', 3)
+      RETURNING id INTO sec_performance;
+
+    INSERT INTO response_questions (section_id, question_text, question_type, scale_min, scale_max, scale_min_label, scale_max_label, is_required, sort_order) VALUES
+      (sec_info, 'Nama Anda', 'text', NULL, NULL, NULL, NULL, true, 1),
+      (sec_info, 'Email Anda', 'text', NULL, NULL, NULL, NULL, false, 2),
+      (sec_usability, 'Seberapa mudah Anda menggunakan sistem ini?', 'scale', 1, 5, 'Sangat Sulit', 'Sangat Mudah', true, 1),
+      (sec_performance, 'Seberapa puas Anda dengan kecepatan respon sistem?', 'scale', 1, 5, 'Sangat Tidak Puas', 'Sangat Puas', true, 1);
+  END IF;
+END $$;
+
 ALTER TABLE topics DISABLE ROW LEVEL SECURITY;
 
 -- Topic Questions (relasi pertanyaan user ↔ topik)
