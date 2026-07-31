@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
 
   const { data: questions, error: qError } = await supabaseAdmin
     .from("response_questions")
-    .select("id, question_type, is_required");
+    .select("id, question_type, is_required")
+    .not("section_id", "is", null); // abaikan pertanyaan yatim tanpa section (tidak tampil di form publik)
 
   if (qError) {
     return NextResponse.json({ error: qError.message }, { status: 500 });
