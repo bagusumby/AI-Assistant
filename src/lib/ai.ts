@@ -5,6 +5,8 @@ const OLLAMA_TOKEN = process.env.OLLAMA_BEARER_TOKEN || process.env.NEXT_PUBLIC_
 const EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL || "qwen3-embedding:4b";
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+  console.log(process.env.OLLAMA_BASE_URL)
+  console.log(process.env.NEXT_PUBLIC_OLLAMA_BASE_URL)
   if (!OLLAMA_BASE_URL) {
     throw new Error("OLLAMA_BASE_URL belum diset di environment variables server");
   }
