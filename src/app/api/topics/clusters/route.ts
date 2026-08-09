@@ -151,11 +151,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Belum ada pertanyaan user untuk bot ini" }, { status: 400 });
     }
 
-    // Deduplicate similar questions (exact match)
+    // Exclude questions the bot failed to answer, so quick questions always lead to a real answer
+    const { data: unanswered } = await supabaseAdmin
+      .from("unanswered_questions")
+      .select("session_id, question")
+      .in("session_id", sessionIds);
+
+    const unansweredSet = new Set(
+      (unanswered || []).map((u) => `${u.session_id}::${u.question.trim().toLowerCase()}`)
+    );
+
+    // Deduplicate similar questions (exact match) and drop unanswered ones
     const uniqueQuestions: { content: string; user_id: string; session_id: string; created_at: string }[] = [];
     const seen = new Set<string>();
     for (const msg of messages) {
       const normalized = msg.content.trim().toLowerCase();
+      if (unansweredSet.has(`${msg.session_id}::${normalized}`)) continue;
       if (!seen.has(normalized) && normalized.length > 5) {
         seen.add(normalized);
         uniqueQuestions.push(msg);
@@ -163,7 +174,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (uniqueQuestions.length < 3) {
-      return NextResponse.json({ error: "Minimal 3 pertanyaan unik diperlukan untuk klasifikasi" }, { status: 400 });
+      return NextResponse.json({ error: "Minimal 3 pertanyaan unik (yang berhasil dijawab bot) diperlukan untuk klasifikasi" }, { status: 400 });
     }
 
     // Prepare prompt (max ~100 questions to fit in context)

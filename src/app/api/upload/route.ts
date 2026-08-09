@@ -114,9 +114,20 @@ export async function POST(req: NextRequest) {
       .eq("user_id", session.user.id)
       .eq("ai_bot_id", botId);
 
-    // --- Extract topics from document (non-blocking, best-effort) ---
+    // --- Extract topics from the bot's entire knowledge base (non-blocking, best-effort) ---
+    // Uses all documents for this bot, not just the newly uploaded file, so topics reflect the whole corpus.
     try {
-      const combinedText = pages.map((p) => p.text).join("\n\n").slice(0, 4000);
+      const { data: allDocs } = await supabaseAdmin
+        .from("documents")
+        .select("content")
+        .eq("ai_bot_id", botId)
+        .limit(500);
+
+      const combinedText = (allDocs && allDocs.length > 0
+        ? allDocs.map((d) => d.content).join("\n\n")
+        : pages.map((p) => p.text).join("\n\n")
+      ).slice(0, 8000);
+
       const extractPrompt = `Analisis teks dokumen berikut dan identifikasi 3-7 topik utama yang dibahas.
 Untuk setiap topik, berikan:
 - name: nama topik singkat (2-5 kata, dalam Bahasa Indonesia)

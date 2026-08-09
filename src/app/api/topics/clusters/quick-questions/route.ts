@@ -39,8 +39,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Clusters are prioritized; if manager hasn't run cluster analysis yet, fall back to auto-extracted topics
     if (!data || data.length === 0) {
-      return NextResponse.json(DEFAULT_QUESTIONS);
+      const { data: topicsData } = await supabaseAdmin
+        .from("topics")
+        .select("id, name, sample_question, question_count")
+        .eq("ai_bot_id", botId)
+        .not("sample_question", "is", null)
+        .order("question_count", { ascending: false })
+        .order("created_at", { ascending: true })
+        .limit(5);
+
+      if (!topicsData || topicsData.length === 0) {
+        return NextResponse.json(DEFAULT_QUESTIONS);
+      }
+
+      const topicQuestions = topicsData.map((topic) => ({
+        id: topic.id,
+        topic: topic.name,
+        question: topic.sample_question as string,
+        count: topic.question_count,
+      }));
+
+      if (topicQuestions.length < 3) {
+        topicQuestions.push(...DEFAULT_QUESTIONS.slice(0, 3 - topicQuestions.length));
+      }
+
+      return NextResponse.json(topicQuestions);
     }
 
     const quickQuestions = data.map((cluster) => {
