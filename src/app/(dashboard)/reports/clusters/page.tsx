@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
 import type { QuestionCluster, ClusterItem } from "@/types";
+import { formatDateTime, formatDate } from "@/lib/dateUtils";
 
 interface AiBot {
   id: string;
@@ -133,7 +134,7 @@ export default function ClustersPage() {
                       <p className="text-sm text-gray-300">{item.question}</p>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className="text-xs text-gray-500">
-                          {item.message_created_at ? new Date(item.message_created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "-"}
+                          {item.message_created_at ? formatDateTime(item.message_created_at) : "-"}
                         </span>
                         {item.users && (
                           <>
@@ -245,7 +246,7 @@ export default function ClustersPage() {
             </div>
             <div className="glass rounded-xl p-4 border border-white/10">
               <p className="text-2xl font-bold text-white">
-                {clusters.length > 0 ? new Date(clusters[0].analyzed_at || clusters[0].created_at).toLocaleDateString("id-ID", { dateStyle: "medium" }) : "-"}
+                {clusters.length > 0 ? formatDate(clusters[0].analyzed_at || clusters[0].created_at) : "-"}
               </p>
               <p className="text-xs text-gray-400 mt-1">Terakhir Dianalisis</p>
             </div>

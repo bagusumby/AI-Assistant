@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getWIBParts, getWIBDateKey, getWIBHour } from "@/lib/dateUtils";
 
-function getWeekNumber(d: Date): number {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+// year/month(1-12)/day here are WIB wall-clock date parts, not UTC.
+function getWeekNumber(year: number, month: number, day: number): number {
+  const date = new Date(Date.UTC(year, month - 1, day));
   const dayNum = date.getUTCDay() || 7;
   date.setUTCDate(date.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
@@ -217,7 +219,7 @@ export async function GET(req: NextRequest) {
   const rtByDay: Record<string, number[]> = {};
   (metricsData || []).forEach((m) => {
     if (!m.total_response_ms) return;
-    const day = (m.created_at as string).slice(0, 10);
+    const day = getWIBDateKey(m.created_at as string);
     if (!rtByDay[day]) rtByDay[day] = [];
     rtByDay[day].push(m.total_response_ms as number);
   });
@@ -235,7 +237,7 @@ export async function GET(req: NextRequest) {
   // ── Traffic aggregations (based on user chat messages, not sessions) ─────────
   const hourlyMap: Record<number, number> = {};
   messagesForTraffic.forEach((m) => {
-    const hour = new Date(m.created_at).getHours();
+    const hour = getWIBHour(m.created_at);
     hourlyMap[hour] = (hourlyMap[hour] || 0) + 1;
   });
   const hourlyTraffic = Array.from({ length: 24 }, (_, h) => ({
@@ -246,7 +248,7 @@ export async function GET(req: NextRequest) {
 
   const dailyMap: Record<string, number> = {};
   messagesForTraffic.forEach((m) => {
-    const day = m.created_at.slice(0, 10);
+    const day = getWIBDateKey(m.created_at);
     dailyMap[day] = (dailyMap[day] || 0) + 1;
   });
   const dailyTraffic = Object.entries(dailyMap)
@@ -255,8 +257,8 @@ export async function GET(req: NextRequest) {
 
   const weeklyMap: Record<string, number> = {};
   messagesForTraffic.forEach((m) => {
-    const d = new Date(m.created_at);
-    const key = `${d.getFullYear()}-W${String(getWeekNumber(d)).padStart(2, "0")}`;
+    const { year, month, day } = getWIBParts(m.created_at);
+    const key = `${year}-W${String(getWeekNumber(year, month, day)).padStart(2, "0")}`;
     weeklyMap[key] = (weeklyMap[key] || 0) + 1;
   });
   const weeklyTraffic = Object.entries(weeklyMap)
@@ -265,7 +267,7 @@ export async function GET(req: NextRequest) {
 
   const monthlyMap: Record<string, number> = {};
   messagesForTraffic.forEach((m) => {
-    const month = m.created_at.slice(0, 7);
+    const month = getWIBDateKey(m.created_at).slice(0, 7);
     monthlyMap[month] = (monthlyMap[month] || 0) + 1;
   });
   const monthlyTraffic = Object.entries(monthlyMap)

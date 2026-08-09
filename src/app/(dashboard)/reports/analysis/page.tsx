@@ -8,6 +8,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import type { AnalyticsData, TrafficPoint, TopUser, ResponseTimeRecord } from "@/types";
+import { formatDateTime, formatTime } from "@/lib/dateUtils";
 
 // ─── Export helpers (html-to-image handles modern CSS oklch/lab colors) ───────
 
@@ -81,7 +82,7 @@ function formatMs(ms: number | null | undefined): string {
 }
 
 function fmtDateTime(iso: string) {
-  return new Date(iso).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" });
+  return formatDateTime(iso, { dateStyle: "short", timeStyle: "short" });
 }
 
 // ─── Recharts tooltip ─────────────────────────────────────────────────────────
@@ -377,7 +378,7 @@ export default function AnalysisPage() {
                 {data?.botName ?? (loading ? "Memuat data…" : "Analitik penggunaan AI Bot")}
                 {lastUpdated && (
                   <span className="text-gray-600 text-xs">
-                    · Diperbarui {lastUpdated.toLocaleTimeString("id-ID", { timeStyle: "short" })}
+                    · Diperbarui {formatTime(lastUpdated)}
                   </span>
                 )}
               </p>

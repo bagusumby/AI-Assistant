@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigationWarning } from "@/lib/useNavigationWarning";
 import { useSession } from "next-auth/react";
+import { formatDateTime } from "@/lib/dateUtils";
 
 interface FileItem {
   id: string;
@@ -286,7 +287,7 @@ export default function UploadPage() {
                           </div>
                           <div className="flex items-center gap-2 flex-wrap mt-1">
                             <span className="text-xs text-gray-500">
-                              {new Date(file.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                              {formatDateTime(file.created_at)}
                             </span>
                             {file.uploaded_by && (
                               <>
@@ -359,7 +360,7 @@ export default function UploadPage() {
                       <h3 className="font-semibold text-white text-sm truncate max-w-md">{previewFile.filename}</h3>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-xs text-gray-400">
-                          {new Date(previewFile.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                          {formatDateTime(previewFile.created_at)}
                         </span>
                         {previewFile.uploaded_by && (
                           <>

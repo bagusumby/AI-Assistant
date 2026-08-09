@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatDate } from "@/lib/dateUtils";
 
 interface User {
   id: string;
@@ -158,7 +159,7 @@ export default function AdminUsersPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-400">
-                        {new Date(user.created_at).toLocaleDateString("id-ID")}
+                        {formatDate(user.created_at)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button

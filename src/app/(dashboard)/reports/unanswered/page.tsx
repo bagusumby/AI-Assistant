@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
 import type { UnansweredQuestion } from "@/types";
 import AddKnowledgeModal from "@/components/ui/AddKnowledgeModal";
+import { formatDateTime } from "@/lib/dateUtils";
 
 interface ChatMsg {
   id: string;
@@ -164,8 +165,8 @@ function DetailModal({ question, onClose, onRefresh }: DetailModalProps) {
         <div className="px-5 py-4 border-t border-white/10 flex-shrink-0 flex items-center justify-between">
           <p className="text-xs text-gray-500">
             {isResolved
-              ? `Dijawab pada ${new Date(question.resolved_at!).toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" })}`
-              : `Tercatat pada ${new Date(question.created_at).toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" })}`
+              ? `Dijawab pada ${formatDateTime(question.resolved_at!, { dateStyle: "long", timeStyle: "short" })}`
+              : `Tercatat pada ${formatDateTime(question.created_at, { dateStyle: "long", timeStyle: "short" })}`
             }
           </p>
           <div className="flex items-center gap-2">
@@ -598,7 +599,7 @@ export default function UnansweredQuestionsPage() {
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedQuestion(q)}>
                     <div className="flex items-center gap-3 flex-wrap mb-1">
                       <span className="text-xs text-gray-500">
-                        {new Date(q.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                        {formatDateTime(q.created_at)}
                       </span>
                       <span className="text-xs text-gray-500">•</span>
                       <span className="text-xs text-gray-400">{q.users?.name || q.users?.email || "-"}</span>

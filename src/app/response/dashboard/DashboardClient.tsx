@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { formatDateTime } from "@/lib/dateUtils";
 
 interface QuestionStat {
   id: string;
@@ -155,7 +156,7 @@ export default function DashboardClient() {
                         onClick={() => setExpandedId(expandedId === sub.id ? null : sub.id)}
                         className="flex-1 text-left text-sm text-gray-300 hover:text-white transition-colors"
                       >
-                        {new Date(sub.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                        {formatDateTime(sub.created_at)}
                         <span className="text-gray-500 ml-2">{expandedId === sub.id ? "▲ sembunyikan" : "▼ lihat jawaban"}</span>
                       </button>
                       <button

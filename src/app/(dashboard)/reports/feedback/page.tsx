@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
 import type { FeedbackReport, FeedbackType } from "@/types";
 import AddKnowledgeModal from "@/components/ui/AddKnowledgeModal";
+import { formatDateTime } from "@/lib/dateUtils";
 
 const FEEDBACK_LABELS: Record<FeedbackType, string> = {
   incomplete: "Tidak Lengkap",
@@ -192,8 +193,8 @@ function DetailModal({ report, onClose, onRefresh }: DetailModalProps) {
         <div className="px-5 py-4 border-t border-white/10 flex-shrink-0 flex items-center justify-between">
           <p className="text-xs text-gray-500">
             {isResolved
-              ? `Diperbaiki pada ${new Date(report.resolved_at!).toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" })}`
-              : `Feedback dikirim pada ${new Date(report.created_at).toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" })}`
+              ? `Diperbaiki pada ${formatDateTime(report.resolved_at!, { dateStyle: "long", timeStyle: "short" })}`
+              : `Feedback dikirim pada ${formatDateTime(report.created_at, { dateStyle: "long", timeStyle: "short" })}`
             }
           </p>
           <div className="flex items-center gap-2">
@@ -613,7 +614,7 @@ export default function FeedbackReportPage() {
                         </td>
                       )}
                       <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">
-                        {new Date(report.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                        {formatDateTime(report.created_at)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-gray-300 text-xs">{report.users?.name || "-"}</div>

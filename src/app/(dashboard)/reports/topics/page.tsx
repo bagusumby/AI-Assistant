@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
 import type { Topic, TopicQuestion } from "@/types";
+import { formatDateTime } from "@/lib/dateUtils";
 
 interface AiBot {
   id: string;
@@ -146,7 +147,7 @@ export default function TopicsPage() {
                       <p className="text-sm text-gray-300">{q.question}</p>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className="text-xs text-gray-500">
-                          {new Date(q.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                          {formatDateTime(q.created_at)}
                         </span>
                         {q.users && (
                           <>
