@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePendingAction } from "@/lib/PendingActionContext";
 import { useState, useEffect } from "react";
 
@@ -85,6 +85,12 @@ export function Sidebar({ user }: SidebarProps) {
   const router = useRouter();
   const { isPending, requestNavigation } = usePendingAction();
   const [menus, setMenus] = useState<MenuEntry[]>([]);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close the mobile drawer whenever the route changes
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const roleLabel: Record<string, string> = {
     admin: "Admin",
@@ -105,6 +111,7 @@ export function Sidebar({ user }: SidebarProps) {
 
   const handleNavigation = (e: React.MouseEvent, href: string) => {
     e.preventDefault();
+    setMobileOpen(false);
     if (pathname === href || pathname.startsWith(href + "/")) return;
 
     if (isPending) {
@@ -117,13 +124,46 @@ export function Sidebar({ user }: SidebarProps) {
   const displayRole = user.role ? (roleLabel[user.role] || user.role) : "";
 
   return (
-    <motion.aside
-      initial={{ x: -80 }}
-      animate={{ x: 0 }}
-      className="w-64 h-screen glass border-r border-white/10 flex flex-col"
-    >
+    <>
+      {/* Mobile top bar */}
+      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-white/10 glass">
+        <button
+          onClick={() => setMobileOpen(true)}
+          aria-label="Buka menu"
+          className="p-2 -ml-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-all"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
+        <h1 className="font-bold text-sm gradient-text">RAG AI Assistant</h1>
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
+          {user.name?.[0]?.toUpperCase() || "U"}
+        </div>
+      </div>
+
+      {/* Mobile backdrop */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileOpen(false)}
+            className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.aside
+        initial={false}
+        animate={{ x: 0 }}
+        className={`fixed md:static inset-y-0 left-0 z-50 w-72 max-w-[85vw] md:w-64 md:max-w-none h-full md:h-screen glass border-r border-white/10 flex flex-col transform transition-transform duration-300 ease-in-out md:translate-x-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
       {/* Brand */}
-      <div className="p-5 border-b border-white/10">
+      <div className="p-5 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -135,6 +175,15 @@ export function Sidebar({ user }: SidebarProps) {
             <p className="text-xs text-gray-500">Private Knowledge</p>
           </div>
         </div>
+        <button
+          onClick={() => setMobileOpen(false)}
+          aria-label="Tutup menu"
+          className="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       {/* Navigation */}
@@ -204,7 +253,8 @@ export function Sidebar({ user }: SidebarProps) {
           Keluar
         </button>
       </div>
-    </motion.aside>
+      </motion.aside>
+    </>
   );
 }
 

@@ -281,6 +281,7 @@ export default function ChatPage() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [feedbackTarget, setFeedbackTarget] = useState<{ messageId?: string; index: number } | null>(null);
   const [showQuickQuestions, setShowQuickQuestions] = useState(true);
+  const [showSessions, setShowSessions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -305,6 +306,7 @@ export default function ChatPage() {
 
   const loadSession = async (id: string, botId?: string) => {
     setSessionId(id);
+    setShowSessions(false);
 
     // Fetch messages and (if needed) bots list in parallel
     const botsSource = allBots.length > 0
@@ -343,6 +345,7 @@ export default function ChatPage() {
     setSessionId(null);
     setMessages([]);
     setSelectedBot(null);
+    setShowSessions(false);
   };
 
   const handleCopy = (content: string, index: number) => {
@@ -419,7 +422,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full relative">
       <AnimatePresence>
         {feedbackTarget && selectedBot && (
           <FeedbackModal
@@ -431,8 +434,26 @@ export default function ChatPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* Mobile backdrop for sessions drawer */}
+      <AnimatePresence>
+        {showSessions && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowSessions(false)}
+            className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Chat Sessions Sidebar */}
-      <div className="w-56 border-r border-white/10 flex flex-col bg-gray-950/50">
+      <div
+        className={`fixed md:static inset-y-0 left-0 z-40 w-72 max-w-[85vw] md:w-56 md:max-w-none h-full border-r border-white/10 flex flex-col bg-gray-950/95 md:bg-gray-950/50 transform transition-transform duration-300 ease-in-out md:translate-x-0 ${
+          showSessions ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="p-3">
           <button onClick={newChat} className="w-full px-3 py-2.5 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-sm font-medium hover:bg-indigo-500/30 transition-all">
             + Chat Baru
@@ -454,32 +475,42 @@ export default function ChatPage() {
       </div>
 
       {/* Main Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col">
         {!selectedBot ? (
           <BotSelector onSelect={setSelectedBot} bots={allBots} loadingBots={allBots.length === 0} />
         ) : (
           <>
             {/* Bot Header */}
-            <div className="px-6 py-3 border-b border-white/10 flex items-center gap-3 bg-gray-950/30">
+            <div className="px-3 sm:px-6 py-3 border-b border-white/10 flex items-center gap-3 bg-gray-950/30">
+              <button
+                onClick={() => setShowSessions(true)}
+                aria-label="Riwayat chat"
+                className="md:hidden p-1.5 -ml-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all flex-shrink-0"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                 </svg>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-white">{selectedBot.name}</p>
-                {selectedBot.description && <p className="text-xs text-gray-400">{selectedBot.description}</p>}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{selectedBot.name}</p>
+                {selectedBot.description && <p className="text-xs text-gray-400 truncate">{selectedBot.description}</p>}
               </div>
               <button
                 onClick={() => { setSelectedBot(null); setMessages([]); setSessionId(null); }}
-                className="ml-auto text-xs text-gray-500 hover:text-indigo-400 transition-colors px-2 py-1 rounded hover:bg-white/5"
+                className="ml-auto text-xs text-gray-500 hover:text-indigo-400 transition-colors px-2 py-1 rounded hover:bg-white/5 flex-shrink-0"
               >
                 Ganti Bot
               </button>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4">
+
               {messages.length === 0 && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full text-center">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/20 flex items-center justify-center mb-4">
@@ -508,7 +539,7 @@ export default function ChatPage() {
                         </svg>
                       </div>
                     )}
-                    <div className="flex flex-col gap-1.5 max-w-[70%]">
+                    <div className="flex flex-col gap-1.5 max-w-[85%] sm:max-w-[70%]">
                       <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                         msg.role === "user"
                             ? "chat-user-bubble bg-indigo-600 text-white rounded-br-md"
@@ -552,7 +583,7 @@ export default function ChatPage() {
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t border-white/10">
+            <div className="p-2.5 sm:p-4 border-t border-white/10">
               {/* Quick Questions Bubbles - always above input */}
               {selectedBot && (
                 <QuickQuestions
@@ -614,7 +645,7 @@ export default function ChatPage() {
                   }}
                 />
               )}
-              <div className="flex gap-2 max-w-3xl mx-auto">
+              <div className="flex gap-1.5 sm:gap-2 max-w-3xl mx-auto">
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -622,7 +653,7 @@ export default function ChatPage() {
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   placeholder={`Tanya ${selectedBot.name}...`}
                   rows={1}
-                  className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-sm text-white placeholder-gray-500 transition-all"
+                  className="flex-1 min-w-0 px-3 sm:px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-sm text-white placeholder-gray-500 transition-all"
                 />
                 {/* Toggle Quick Questions */}
                 {selectedBot && (

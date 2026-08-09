@@ -45,9 +45,9 @@ export default function RegisterPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="relative z-10 w-full max-w-md px-6"
+        className="relative z-10 w-full max-w-md px-4 sm:px-6"
       >
-        <div className="glass rounded-2xl p-8 glow">
+        <div className="glass rounded-2xl p-6 sm:p-8 glow">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
