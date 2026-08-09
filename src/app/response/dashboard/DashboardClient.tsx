@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -79,6 +79,46 @@ export default function DashboardClient() {
     if (res.ok) fetchAll();
   };
 
+  // Rekap rata-rata & persentase per section dihitung langsung dari distribusi jawaban (bukan angka statis)
+  const summary = useMemo(() => {
+    if (!results) return null;
+    let grandSum = 0;
+    let grandCount = 0;
+    const rows = results.sections
+      .map((section) => {
+        let sum = 0;
+        let count = 0;
+        for (const q of section.questions) {
+          if (q.question_type !== "scale" || !q.distribution) continue;
+          for (const d of q.distribution) {
+            sum += d.value * d.count;
+            count += d.count;
+          }
+        }
+        if (count === 0) return null;
+        grandSum += sum;
+        grandCount += count;
+        return {
+          id: section.id,
+          title: section.title,
+          itemCount: section.questions.filter((q) => q.question_type === "scale").length,
+          average: sum / count,
+          percentage: (sum / count / 5) * 100,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    if (rows.length === 0) return null;
+    return {
+      rows,
+      overall: {
+        itemCount: rows.reduce((acc, r) => acc + r.itemCount, 0),
+        average: grandCount > 0 ? grandSum / grandCount : 0,
+        percentage: grandCount > 0 ? (grandSum / grandCount / 5) * 100 : 0,
+      },
+    };
+  }, [results]);
+
   return (
     <div className="h-screen overflow-y-auto p-6 bg-gray-950">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto space-y-6">
@@ -99,6 +139,43 @@ export default function DashboardClient() {
           <div className="glass rounded-xl border border-white/10 p-10 text-center text-gray-500 text-sm">Belum ada responden yang mengisi survey</div>
         ) : (
           <>
+            {summary && (
+              <div className="glass rounded-xl border border-white/10 overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h2 className="font-semibold text-white text-sm">Rekap Rata-rata & Persentase per Kategori</h2>
+                  <p className="text-xs text-gray-500">Dihitung otomatis dari jawaban responden saat ini</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-500 uppercase tracking-wide">
+                        <th className="px-5 py-2 font-medium">Kategori</th>
+                        <th className="px-5 py-2 font-medium text-center">Jumlah Item</th>
+                        <th className="px-5 py-2 font-medium text-center">Rata-rata</th>
+                        <th className="px-5 py-2 font-medium text-center">Persentase</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {summary.rows.map((r) => (
+                        <tr key={r.id}>
+                          <td className="px-5 py-2.5 text-gray-300">{r.title}</td>
+                          <td className="px-5 py-2.5 text-center text-gray-400">{r.itemCount}</td>
+                          <td className="px-5 py-2.5 text-center text-indigo-300 font-semibold">{r.average.toFixed(2)}</td>
+                          <td className="px-5 py-2.5 text-center text-indigo-300 font-semibold">{r.percentage.toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-white/5">
+                        <td className="px-5 py-2.5 text-white font-semibold">Rata-rata Keseluruhan</td>
+                        <td className="px-5 py-2.5 text-center text-gray-300 font-semibold">{summary.overall.itemCount}</td>
+                        <td className="px-5 py-2.5 text-center text-emerald-300 font-bold">{summary.overall.average.toFixed(2)}</td>
+                        <td className="px-5 py-2.5 text-center text-emerald-300 font-bold">{summary.overall.percentage.toFixed(1)}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {results.sections.map((section) => (
               <div key={section.id} className="space-y-3">
                 <div>
