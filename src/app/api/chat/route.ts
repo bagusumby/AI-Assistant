@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     const UNANSWERED_PREFIXES = [
       "Maaf, saya tidak menemukan informasi yang relevan",
-      "Maaf, saya tidak menemukan informasi tersebut",
+      "Maaf, saya tidak menemukan informasi",
     ];
 
     const stream = new ReadableStream({
