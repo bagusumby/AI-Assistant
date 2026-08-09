@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import type { UnansweredQuestion } from "@/types";
 import AddKnowledgeModal from "@/components/ui/AddKnowledgeModal";
 import { formatDateTime } from "@/lib/dateUtils";
+import { useDebounce } from "@/lib/useDebounce";
 
 interface ChatMsg {
   id: string;
@@ -230,6 +231,8 @@ export default function UnansweredQuestionsPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [showMarkResolvedModal, setShowMarkResolvedModal] = useState(false);
   const [markResolvedAnswer, setMarkResolvedAnswer] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 400);
 
   const fetchQuestions = useCallback(async () => {
     setLoading(true);
@@ -237,13 +240,14 @@ export default function UnansweredQuestionsPage() {
     params.set("status", activeTab);
     params.set("sort", sortBy);
     if (filterPriority !== "all") params.set("priority", filterPriority);
+    if (debouncedSearch) params.set("search", debouncedSearch);
     const res = await fetch(`/api/reports/unanswered?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
       setQuestions(data);
     }
     setLoading(false);
-  }, [activeTab, sortBy, filterPriority]);
+  }, [activeTab, sortBy, filterPriority, debouncedSearch]);
 
   useEffect(() => {
     fetchQuestions();
@@ -360,6 +364,30 @@ export default function UnansweredQuestionsPage() {
           >
             Sudah Terjawab
           </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-4 max-w-md">
+          <svg className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Cari pertanyaan..."
+            className="w-full pl-9 pr-9 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-gray-500 outline-none focus:border-indigo-500"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Controls: Sort + Priority Filter + Bot Filter */}

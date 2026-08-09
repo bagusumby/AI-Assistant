@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const statusFilter = searchParams.get("status"); // "pending" | "resolved" | null (all)
   const priorityFilter = searchParams.get("priority"); // "high" | "medium" | "low" | null
   const sortBy = searchParams.get("sort") || "priority"; // "priority" | "date"
+  const search = searchParams.get("search")?.trim(); // free-text search on question
 
   let query = supabaseAdmin
     .from("unanswered_questions")
@@ -50,6 +51,11 @@ export async function GET(req: NextRequest) {
     query = query.is("priority", null);
   } else if (priorityFilter) {
     query = query.eq("priority", priorityFilter);
+  }
+
+  // Filter by search text (question, case-insensitive partial match)
+  if (search) {
+    query = query.ilike("question", `%${search}%`);
   }
 
   // Sort

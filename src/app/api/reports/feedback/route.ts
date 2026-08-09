@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const statusFilter = searchParams.get("status"); // "pending" | "resolved" | null (all)
   const priorityFilter = searchParams.get("priority"); // "high" | "medium" | "low" | null
   const sortBy = searchParams.get("sort") || "priority"; // "priority" | "date"
+  const search = searchParams.get("search")?.trim(); // free-text search on feedback message
 
   let query = supabaseAdmin
     .from("feedback_reports")
@@ -52,6 +53,11 @@ export async function GET(req: NextRequest) {
     query = query.is("priority", null);
   } else if (priorityFilter) {
     query = query.eq("priority", priorityFilter);
+  }
+
+  // Filter by search text (feedback message, case-insensitive partial match)
+  if (search) {
+    query = query.ilike("message", `%${search}%`);
   }
 
   // Base sort by date
