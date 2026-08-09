@@ -111,7 +111,6 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  console.log('tracked url LLM', process.env.NEXT_PUBLIC_OLLAMA_BASE_URL)
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       {/* Background effects */}
