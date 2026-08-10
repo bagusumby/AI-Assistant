@@ -12,7 +12,6 @@ interface AiBot {
   description?: string;
   manager_role_id?: string;
   chat_enabled: boolean;
-  system_prompt?: string;
   created_at: string;
   role?: { id: string; label: string; name: string };
 }
@@ -31,7 +30,7 @@ export default function AdminBotsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingBot, setEditingBot] = useState<AiBot | null>(null);
   const [formData, setFormData] = useState({
-    name: "", slug: "", description: "", manager_role_id: "", chat_enabled: true, system_prompt: "",
+    name: "", slug: "", description: "", manager_role_id: "", chat_enabled: true,
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -83,7 +82,7 @@ export default function AdminBotsPage() {
 
   const openCreate = () => {
     setEditingBot(null);
-    setFormData({ name: "", slug: "", description: "", manager_role_id: "", chat_enabled: true, system_prompt: "" });
+    setFormData({ name: "", slug: "", description: "", manager_role_id: "", chat_enabled: true });
     setError("");
     setShowModal(true);
   };
@@ -93,7 +92,6 @@ export default function AdminBotsPage() {
     setFormData({
       name: bot.name, slug: bot.slug, description: bot.description || "",
       manager_role_id: bot.manager_role_id || "", chat_enabled: bot.chat_enabled,
-      system_prompt: bot.system_prompt || "",
     });
     setError("");
     setShowModal(true);
@@ -109,7 +107,6 @@ export default function AdminBotsPage() {
       description: formData.description,
       manager_role_id: formData.manager_role_id || null,
       chat_enabled: formData.chat_enabled,
-      system_prompt: formData.system_prompt,
       ...(editingBot ? {} : { slug: formData.slug }),
     };
 
@@ -293,12 +290,6 @@ export default function AdminBotsPage() {
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.chat_enabled ? "bg-green-500" : "bg-gray-600"}`}>
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${formData.chat_enabled ? "translate-x-6" : "translate-x-1"}`} />
                   </button>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1.5">System Prompt</label>
-                  <textarea value={formData.system_prompt} onChange={(e) => setFormData({ ...formData, system_prompt: e.target.value })}
-                    rows={5} placeholder="Instruksi kustom untuk bot ini. Gunakan {context} untuk memasukkan hasil pencarian dokumen."
-                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none transition-all text-white text-sm" />
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 font-medium text-sm transition-all">Batal</button>
