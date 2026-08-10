@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
   const priorityFilter = searchParams.get("priority"); // "high" | "medium" | "low" | null
   const sortBy = searchParams.get("sort") || "priority"; // "priority" | "date"
   const search = searchParams.get("search")?.trim(); // free-text search on question
+  const botFilter = searchParams.get("botId"); // ai_bot_id, or "all"/null
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.max(1, parseInt(searchParams.get("limit") || "10", 10));
 
   let query = supabaseAdmin
     .from("unanswered_questions")
@@ -87,8 +90,19 @@ export async function GET(req: NextRequest) {
 
   let enriched = (data || []).map((r) => ({
     ...r,
+    ai_bots: Array.isArray(r.ai_bots) ? r.ai_bots[0] ?? null : r.ai_bots,
     users: usersMap[r.user_id] || null,
   }));
+
+  // Bot list computed before applying the bot filter (used to populate the "bot" filter dropdown)
+  const botsMap = new Map<string, { id: string; name: string }>();
+  for (const r of enriched) {
+    if (r.ai_bots) botsMap.set(r.ai_bots.id, { id: r.ai_bots.id, name: r.ai_bots.name });
+  }
+
+  if (botFilter && botFilter !== "all") {
+    enriched = enriched.filter((r) => r.ai_bots?.id === botFilter);
+  }
 
   // Client-side priority sort (since Supabase can't sort nulls last with custom order easily)
   if (sortBy === "priority") {
@@ -101,7 +115,18 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json(enriched);
+  const total = enriched.length;
+  const from = (page - 1) * limit;
+  const paged = enriched.slice(from, from + limit);
+
+  return NextResponse.json({
+    questions: paged,
+    total,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+    bots: Array.from(botsMap.values()),
+  });
 }
 
 // PATCH: Set priority for a question

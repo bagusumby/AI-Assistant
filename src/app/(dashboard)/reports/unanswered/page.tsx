@@ -7,6 +7,7 @@ import type { UnansweredQuestion } from "@/types";
 import AddKnowledgeModal from "@/components/ui/AddKnowledgeModal";
 import { formatDateTime } from "@/lib/dateUtils";
 import { useDebounce } from "@/lib/useDebounce";
+import Pagination from "@/components/ui/Pagination";
 
 interface ChatMsg {
   id: string;
@@ -233,6 +234,12 @@ export default function UnansweredQuestionsPage() {
   const [markResolvedAnswer, setMarkResolvedAnswer] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 400);
+  const [uniqueBots, setUniqueBots] = useState<{ id: string; name: string }[]>([]);
+
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const fetchQuestions = useCallback(async () => {
     setLoading(true);
@@ -241,23 +248,32 @@ export default function UnansweredQuestionsPage() {
     params.set("sort", sortBy);
     if (filterPriority !== "all") params.set("priority", filterPriority);
     if (debouncedSearch) params.set("search", debouncedSearch);
+    if (filterBot !== "all") params.set("botId", filterBot);
+    params.set("page", String(page));
+    params.set("limit", String(limit));
     const res = await fetch(`/api/reports/unanswered?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
-      setQuestions(data);
+      setQuestions(data.questions || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.totalPages || 1);
+      setUniqueBots(data.bots || []);
     }
     setLoading(false);
-  }, [activeTab, sortBy, filterPriority, debouncedSearch]);
+  }, [activeTab, sortBy, filterPriority, debouncedSearch, filterBot, page, limit]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchQuestions();
   }, [fetchQuestions]);
 
-  const uniqueBots = Array.from(
-    new Map(questions.filter((q) => q.ai_bots).map((q) => [q.ai_bots!.id, q.ai_bots!])).values()
-  );
+  // Reset to first page whenever a filter/tab changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+  }, [activeTab, sortBy, filterPriority, debouncedSearch, filterBot]);
 
-  const filtered = filterBot === "all" ? questions : questions.filter((q) => q.ai_bots?.id === filterBot);
+  const filtered = questions;
 
   const setPriority = async (id: string, priority: string | null) => {
     await fetch("/api/reports/unanswered", {
@@ -460,7 +476,7 @@ export default function UnansweredQuestionsPage() {
         {/* Bulk action bar + Stats */}
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs text-gray-500">
-            Menampilkan {filtered.length} pertanyaan
+            Menampilkan {filtered.length} dari {total} pertanyaan
           </span>
           {activeTab === "pending" && selectedIds.size > 0 && (
             <div className="flex items-center gap-2">
@@ -684,6 +700,16 @@ export default function UnansweredQuestionsPage() {
                 </div>
               </div>
             ))}
+            <div className="glass rounded-2xl border border-white/10 overflow-hidden">
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={total}
+                limit={limit}
+                onPageChange={setPage}
+                onLimitChange={(l) => { setLimit(l); setPage(1); }}
+              />
+            </div>
           </div>
         )}
       </motion.div>

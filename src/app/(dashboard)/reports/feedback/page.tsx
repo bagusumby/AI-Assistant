@@ -7,6 +7,7 @@ import type { FeedbackReport, FeedbackType } from "@/types";
 import AddKnowledgeModal from "@/components/ui/AddKnowledgeModal";
 import { formatDateTime } from "@/lib/dateUtils";
 import { useDebounce } from "@/lib/useDebounce";
+import Pagination from "@/components/ui/Pagination";
 
 const FEEDBACK_LABELS: Record<FeedbackType, string> = {
   incomplete: "Tidak Lengkap",
@@ -261,6 +262,12 @@ export default function FeedbackReportPage() {
   const [markResolvedAnswer, setMarkResolvedAnswer] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 400);
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
@@ -269,19 +276,32 @@ export default function FeedbackReportPage() {
     params.set("sort", sortBy);
     if (filterPriority !== "all") params.set("priority", filterPriority);
     if (debouncedSearch) params.set("search", debouncedSearch);
+    if (filterType !== "all") params.set("type", filterType);
+    params.set("page", String(page));
+    params.set("limit", String(limit));
     const res = await fetch(`/api/reports/feedback?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
-      setReports(data);
+      setReports(data.reports || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.totalPages || 1);
+      setTypeCounts(data.typeCounts || {});
     }
     setLoading(false);
-  }, [activeTab, sortBy, filterPriority, debouncedSearch]);
+  }, [activeTab, sortBy, filterPriority, debouncedSearch, filterType, page, limit]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchReports();
   }, [fetchReports]);
 
-  const filtered = filterType === "all" ? reports : reports.filter((r) => r.feedback_type === filterType);
+  // Reset to first page whenever a filter/tab changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+  }, [activeTab, sortBy, filterPriority, debouncedSearch, filterType]);
+
+  const filtered = reports;
 
   const setPriority = async (id: string, priority: string | null) => {
     await fetch("/api/reports/feedback", {
@@ -471,7 +491,7 @@ export default function FeedbackReportPage() {
               filterType === "all" ? "bg-indigo-500/30 text-indigo-300 border border-indigo-500/30" : "border border-white/10 text-gray-400 hover:border-white/20"
             }`}
           >
-            Semua Tipe ({reports.length})
+            Semua Tipe ({Object.values(typeCounts).reduce((sum, c) => sum + c, 0)})
           </button>
           {(Object.entries(FEEDBACK_LABELS) as [FeedbackType, string][]).map(([type, label]) => (
             <button
@@ -481,7 +501,7 @@ export default function FeedbackReportPage() {
                 filterType === type ? "bg-indigo-500/30 text-indigo-300 border border-indigo-500/30" : "border border-white/10 text-gray-400 hover:border-white/20"
               }`}
             >
-              {label} ({reports.filter((r) => r.feedback_type === type).length})
+              {label} ({typeCounts[type] || 0})
             </button>
           ))}
         </div>
@@ -489,7 +509,7 @@ export default function FeedbackReportPage() {
         {/* Bulk action bar + Result count */}
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs text-gray-500">
-            Menampilkan {filtered.length} feedback
+            Menampilkan {filtered.length} dari {total} feedback
           </span>
           {activeTab === "pending" && selectedIds.size > 0 && (
             <div className="flex items-center gap-2">
@@ -697,6 +717,14 @@ export default function FeedbackReportPage() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              limit={limit}
+              onPageChange={setPage}
+              onLimitChange={(l) => { setLimit(l); setPage(1); }}
+            />
           </div>
         )}
       </motion.div>

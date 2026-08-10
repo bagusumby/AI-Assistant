@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
   const priorityFilter = searchParams.get("priority"); // "high" | "medium" | "low" | null
   const sortBy = searchParams.get("sort") || "priority"; // "priority" | "date"
   const search = searchParams.get("search")?.trim(); // free-text search on feedback message
+  const typeFilter = searchParams.get("type"); // feedback_type, or "all"/null
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.max(1, parseInt(searchParams.get("limit") || "10", 10));
 
   let query = supabaseAdmin
     .from("feedback_reports")
@@ -87,6 +90,16 @@ export async function GET(req: NextRequest) {
     users: usersMap[r.user_id] || null,
   }));
 
+  // Type counts computed before applying the type filter (used for the "type" filter tabs/badges)
+  const typeCounts: Record<string, number> = {};
+  for (const r of enriched) {
+    typeCounts[r.feedback_type] = (typeCounts[r.feedback_type] || 0) + 1;
+  }
+
+  if (typeFilter && typeFilter !== "all") {
+    enriched = enriched.filter((r) => r.feedback_type === typeFilter);
+  }
+
   // Client-side priority sort
   if (sortBy === "priority") {
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -98,7 +111,18 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json(enriched);
+  const total = enriched.length;
+  const from = (page - 1) * limit;
+  const paged = enriched.slice(from, from + limit);
+
+  return NextResponse.json({
+    reports: paged,
+    total,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+    typeCounts,
+  });
 }
 
 // PATCH: Set priority for a feedback report
