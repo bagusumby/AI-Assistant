@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDate } from "@/lib/dateUtils";
+import { useDebounce } from "@/lib/useDebounce";
+import Pagination from "@/components/ui/Pagination";
 
 interface User {
   id: string;
@@ -28,21 +30,49 @@ export default function AdminUsersPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const [nameFilter, setNameFilter] = useState("");
+  const [emailFilter, setEmailFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+  const debouncedName = useDebounce(nameFilter);
+  const debouncedEmail = useDebounce(emailFilter);
+
   const fetchUsers = useCallback(async () => {
-    const res = await fetch("/api/admin/users");
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (debouncedName) params.set("name", debouncedName);
+    if (debouncedEmail) params.set("email", debouncedEmail);
+    if (roleFilter) params.set("role", roleFilter);
+    if (dateFilter) params.set("createdDate", dateFilter);
+
+    const res = await fetch(`/api/admin/users?${params.toString()}`);
     const data = await res.json();
     if (data.users) {
       setUsers(data.users);
       setRoles(data.roles || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.totalPages || 1);
     } else {
       setUsers(data);
     }
     setLoading(false);
-  }, []);
+  }, [page, limit, debouncedName, debouncedEmail, roleFilter, dateFilter]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUsers();
   }, [fetchUsers]);
+
+  // Reset to first page whenever a filter changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+  }, [debouncedName, debouncedEmail, roleFilter, dateFilter]);
 
   const openCreate = () => {
     setEditingUser(null);
@@ -132,6 +162,47 @@ export default function AdminUsersPage() {
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Dibuat</th>
                   <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Aksi</th>
                 </tr>
+                <tr className="border-b border-white/10 bg-white/[0.02]">
+                  <th className="px-6 py-2">
+                    <input
+                      type="text"
+                      value={nameFilter}
+                      onChange={(e) => setNameFilter(e.target.value)}
+                      placeholder="Cari nama..."
+                      className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all"
+                    />
+                  </th>
+                  <th className="px-6 py-2">
+                    <input
+                      type="text"
+                      value={emailFilter}
+                      onChange={(e) => setEmailFilter(e.target.value)}
+                      placeholder="Cari email..."
+                      className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all"
+                    />
+                  </th>
+                  <th className="px-6 py-2">
+                    <select
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all"
+                    >
+                      <option value="" className="bg-gray-900">Semua role</option>
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.name} className="bg-gray-900">{r.label}</option>
+                      ))}
+                    </select>
+                  </th>
+                  <th className="px-6 py-2">
+                    <input
+                      type="date"
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all [color-scheme:dark]"
+                    />
+                  </th>
+                  <th className="px-6 py-2" />
+                </tr>
               </thead>
               <tbody>
                 {loading ? (
@@ -181,8 +252,17 @@ export default function AdminUsersPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(l) => { setLimit(l); setPage(1); }}
+          />
         </div>
       </motion.div>
+
 
       {/* Modal */}
       <AnimatePresence>

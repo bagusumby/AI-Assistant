@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useDebounce } from "@/lib/useDebounce";
+import Pagination from "@/components/ui/Pagination";
 
 interface Role {
   id: string;
@@ -24,16 +26,44 @@ export default function AdminRolesPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const [nameFilter, setNameFilter] = useState("");
+  const [labelFilter, setLabelFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const debouncedName = useDebounce(nameFilter);
+  const debouncedLabel = useDebounce(labelFilter);
+
   const fetchRoles = useCallback(async () => {
-    const res = await fetch("/api/admin/roles");
-    if (res.ok) setRoles(await res.json());
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (debouncedName) params.set("name", debouncedName);
+    if (debouncedLabel) params.set("label", debouncedLabel);
+    if (typeFilter) params.set("type", typeFilter);
+
+    const res = await fetch(`/api/admin/roles?${params.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      setRoles(data.roles || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.totalPages || 1);
+    }
     setLoading(false);
-  }, []);
+  }, [page, limit, debouncedName, debouncedLabel, typeFilter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchRoles();
   }, [fetchRoles]);
+
+  // Reset to first page whenever a filter changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+  }, [debouncedName, debouncedLabel, typeFilter]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Yakin ingin menghapus role ini?")) return;
@@ -74,6 +104,40 @@ export default function AdminRolesPage() {
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Tipe</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Deskripsi</th>
                   <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Aksi</th>
+                </tr>
+                <tr className="border-b border-white/10 bg-white/[0.02]">
+                  <th className="px-6 py-2">
+                    <input
+                      type="text"
+                      value={nameFilter}
+                      onChange={(e) => setNameFilter(e.target.value)}
+                      placeholder="Cari nama (slug)..."
+                      className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all"
+                    />
+                  </th>
+                  <th className="px-6 py-2">
+                    <input
+                      type="text"
+                      value={labelFilter}
+                      onChange={(e) => setLabelFilter(e.target.value)}
+                      placeholder="Cari label..."
+                      className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all"
+                    />
+                  </th>
+                  <th className="px-6 py-2">
+                    <select
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all"
+                    >
+                      <option value="" className="bg-gray-900">Semua tipe</option>
+                      <option value="system" className="bg-gray-900">system</option>
+                      <option value="manager" className="bg-gray-900">manager</option>
+                      <option value="user" className="bg-gray-900">user</option>
+                    </select>
+                  </th>
+                  <th className="px-6 py-2" />
+                  <th className="px-6 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -122,8 +186,17 @@ export default function AdminRolesPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(l) => { setLimit(l); setPage(1); }}
+          />
         </div>
       </motion.div>
+
     </div>
   );
 }

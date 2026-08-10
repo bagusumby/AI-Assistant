@@ -3,23 +3,61 @@ import { auth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { v4 as uuid } from "uuid";
 
-// GET - List all roles
-export async function GET() {
+// GET - List all roles (plain array), or filtered & paginated when `page` query param is present
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id || session.user.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabaseAdmin
+  const { searchParams } = new URL(req.url);
+  const paginated = searchParams.has("page");
+
+  if (!paginated) {
+    const { data, error } = await supabaseAdmin
+      .from("roles")
+      .select("id, name, label, description, type, created_at")
+      .order("type", { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data || []);
+  }
+
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.max(1, parseInt(searchParams.get("limit") || "10", 10));
+  const name = searchParams.get("name")?.trim();
+  const label = searchParams.get("label")?.trim();
+  const type = searchParams.get("type")?.trim();
+
+  let query = supabaseAdmin
     .from("roles")
-    .select("id, name, label, description, type, created_at")
-    .order("type", { ascending: true });
+    .select("id, name, label, description, type, created_at", { count: "exact" });
+
+  if (name) query = query.ilike("name", `%${name}%`);
+  if (label) query = query.ilike("label", `%${label}%`);
+  if (type) query = query.eq("type", type);
+
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, error, count } = await query
+    .order("type", { ascending: true })
+    .range(from, to);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data || []);
+  return NextResponse.json({
+    roles: data || [],
+    total: count || 0,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
+  });
 }
 
 // POST - Create new role

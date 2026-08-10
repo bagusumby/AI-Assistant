@@ -4,29 +4,60 @@ import { supabaseAdmin } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
 import { v4 as uuid } from "uuid";
 
-// GET - List all users with roles
-export async function GET() {
+// GET - List users with roles, filtering & pagination
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id || session.user.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: users, error } = await supabaseAdmin
+  const { searchParams } = new URL(req.url);
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.max(1, parseInt(searchParams.get("limit") || "10", 10));
+  const name = searchParams.get("name")?.trim();
+  const email = searchParams.get("email")?.trim();
+  const role = searchParams.get("role")?.trim();
+  const createdDate = searchParams.get("createdDate")?.trim();
+
+  let query = supabaseAdmin
     .from("users")
-    .select("id, name, email, role, role_id, created_at, roles(id, name, label, type)")
-    .order("created_at", { ascending: false });
+    .select("id, name, email, role, role_id, created_at, roles(id, name, label, type)", { count: "exact" });
+
+  if (name) query = query.ilike("name", `%${name}%`);
+  if (email) query = query.ilike("email", `%${email}%`);
+  if (role) query = query.eq("role", role);
+  if (createdDate) {
+    // Day boundaries in WIB (UTC+7) converted to UTC for the TIMESTAMPTZ column
+    const start = new Date(`${createdDate}T00:00:00+07:00`);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    query = query.gte("created_at", start.toISOString()).lt("created_at", end.toISOString());
+  }
+
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data: users, error, count } = await query
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Also return all roles for the dropdown
+  // Also return all roles for the dropdown/filter
   const { data: roles } = await supabaseAdmin
     .from("roles")
     .select("id, name, label, type")
     .order("type", { ascending: true });
 
-  return NextResponse.json({ users: users || [], roles: roles || [] });
+  return NextResponse.json({
+    users: users || [],
+    roles: roles || [],
+    total: count || 0,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
+  });
 }
 
 // POST - Create user

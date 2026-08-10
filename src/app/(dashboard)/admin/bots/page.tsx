@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDebounce } from "@/lib/useDebounce";
+import Pagination from "@/components/ui/Pagination";
 
 interface AiBot {
   id: string;
@@ -35,20 +37,49 @@ export default function AdminBotsPage() {
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const [nameFilter, setNameFilter] = useState("");
+  const [slugFilter, setSlugFilter] = useState("");
+  const debouncedName = useDebounce(nameFilter);
+  const debouncedSlug = useDebounce(slugFilter);
+
   const fetchData = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (debouncedName) params.set("name", debouncedName);
+    if (debouncedSlug) params.set("slug", debouncedSlug);
+
     const [botsRes, rolesRes] = await Promise.all([
-      fetch("/api/admin/bots"),
+      fetch(`/api/admin/bots?${params.toString()}`),
       fetch("/api/admin/roles"),
     ]);
-    if (botsRes.ok) setBots(await botsRes.json());
+    if (botsRes.ok) {
+      const data = await botsRes.json();
+      setBots(data.bots || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.totalPages || 1);
+    }
     if (rolesRes.ok) {
       const allRoles: Role[] = await rolesRes.json();
       setRoles(allRoles.filter((r) => r.type === "manager"));
     }
     setLoading(false);
-  }, []);
+  }, [page, limit, debouncedName, debouncedSlug]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, [fetchData]);
+
+  // Reset to first page whenever a filter changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+  }, [debouncedName, debouncedSlug]);
 
   const openCreate = () => {
     setEditingBot(null);
@@ -142,6 +173,29 @@ export default function AdminBotsPage() {
                 <th className="text-center px-6 py-4 text-sm font-medium text-gray-400">Chat</th>
                 <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Aksi</th>
               </tr>
+              <tr className="border-b border-white/10 bg-white/[0.02]">
+                <th className="px-6 py-2">
+                  <input
+                    type="text"
+                    value={nameFilter}
+                    onChange={(e) => setNameFilter(e.target.value)}
+                    placeholder="Cari bot..."
+                    className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all"
+                  />
+                </th>
+                <th className="px-6 py-2">
+                  <input
+                    type="text"
+                    value={slugFilter}
+                    onChange={(e) => setSlugFilter(e.target.value)}
+                    placeholder="Cari slug..."
+                    className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500 transition-all"
+                  />
+                </th>
+                <th className="px-6 py-2" />
+                <th className="px-6 py-2" />
+                <th className="px-6 py-2" />
+              </tr>
             </thead>
             <tbody>
               {loading ? (
@@ -181,8 +235,17 @@ export default function AdminBotsPage() {
               )}
             </tbody>
           </table>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(l) => { setLimit(l); setPage(1); }}
+          />
         </div>
       </motion.div>
+
 
       <AnimatePresence>
         {showModal && (
