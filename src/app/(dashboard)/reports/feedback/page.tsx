@@ -263,6 +263,8 @@ export default function FeedbackReportPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+  const [filterBot, setFilterBot] = useState<string>("all");
+  const [uniqueBots, setUniqueBots] = useState<{ id: string; name: string }[]>([]);
 
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -277,6 +279,7 @@ export default function FeedbackReportPage() {
     if (filterPriority !== "all") params.set("priority", filterPriority);
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (filterType !== "all") params.set("type", filterType);
+    if (filterBot !== "all") params.set("botId", filterBot);
     params.set("page", String(page));
     params.set("limit", String(limit));
     const res = await fetch(`/api/reports/feedback?${params.toString()}`);
@@ -286,9 +289,10 @@ export default function FeedbackReportPage() {
       setTotal(data.total || 0);
       setTotalPages(data.totalPages || 1);
       setTypeCounts(data.typeCounts || {});
+      setUniqueBots(data.bots || []);
     }
     setLoading(false);
-  }, [activeTab, sortBy, filterPriority, debouncedSearch, filterType, page, limit]);
+  }, [activeTab, sortBy, filterPriority, debouncedSearch, filterType, filterBot, page, limit]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -299,7 +303,7 @@ export default function FeedbackReportPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [activeTab, sortBy, filterPriority, debouncedSearch, filterType]);
+  }, [activeTab, sortBy, filterPriority, debouncedSearch, filterType, filterBot]);
 
   const filtered = reports;
 
@@ -481,6 +485,23 @@ export default function FeedbackReportPage() {
               </button>
             </div>
           </div>
+
+          {/* Bot filter (admin only) */}
+          {isAdmin && uniqueBots.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Bot:</span>
+              <select
+                value={filterBot}
+                onChange={(e) => setFilterBot(e.target.value)}
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-indigo-500"
+              >
+                <option value="all" className="bg-gray-900">Semua Bot</option>
+                {uniqueBots.map((bot) => (
+                  <option key={bot.id} value={bot.id} className="bg-gray-900">{bot.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Feedback type filter */}
