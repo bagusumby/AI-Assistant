@@ -34,7 +34,6 @@ export default function AdminBotsPage() {
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -127,17 +126,6 @@ export default function AdminBotsPage() {
     setSaving(false);
   };
 
-  const toggleChat = async (bot: AiBot) => {
-    setTogglingId(bot.id);
-    await fetch(`/api/admin/bots/${bot.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_enabled: !bot.chat_enabled }),
-    });
-    await fetchData();
-    setTogglingId(null);
-  };
-
   const handleDelete = async (id: string) => {
     if (!confirm("Yakin ingin menghapus bot ini? Semua dokumen terkait akan ikut terhapus.")) return;
     const res = await fetch(`/api/admin/bots/${id}`, { method: "DELETE" });
@@ -214,13 +202,9 @@ export default function AdminBotsPage() {
                     <td className="px-6 py-4 text-sm text-gray-300">{bot.role?.label || "—"}</td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center">
-                        <button
-                          onClick={() => toggleChat(bot)}
-                          disabled={togglingId === bot.id}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${bot.chat_enabled ? "bg-green-500" : "bg-gray-600"} ${togglingId === bot.id ? "opacity-50" : ""}`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${bot.chat_enabled ? "translate-x-6" : "translate-x-1"}`} />
-                        </button>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${bot.chat_enabled ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"}`}>
+                          {bot.chat_enabled ? "Aktif" : "Nonaktif"}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
