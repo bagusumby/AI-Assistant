@@ -94,6 +94,15 @@ export async function GET(req: NextRequest) {
     users: usersMap[r.user_id] || null,
   }));
 
+  // Deduplicate: same user asking the same question at the same time (e.g. seeded/duplicated data)
+  const seenDuplicates = new Set<string>();
+  enriched = enriched.filter((r) => {
+    const key = `${r.user_id}|${r.created_at}|${r.question}`;
+    if (seenDuplicates.has(key)) return false;
+    seenDuplicates.add(key);
+    return true;
+  });
+
   // Bot list computed before applying the bot filter (used to populate the "bot" filter dropdown)
   const botsMap = new Map<string, { id: string; name: string }>();
   for (const r of enriched) {

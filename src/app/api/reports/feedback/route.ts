@@ -92,6 +92,15 @@ export async function GET(req: NextRequest) {
     users: usersMap[r.user_id] || null,
   }));
 
+  // Deduplicate: same user, same time, same message, same type and same bot (e.g. seeded/duplicated data)
+  const seenDuplicates = new Set<string>();
+  enriched = enriched.filter((r) => {
+    const key = `${r.user_id}|${r.created_at}|${r.message}|${r.feedback_type}|${r.ai_bot_id}`;
+    if (seenDuplicates.has(key)) return false;
+    seenDuplicates.add(key);
+    return true;
+  });
+
   // Type counts computed before applying the type/bot filter (used for the "type" filter tabs/badges)
   const typeCounts: Record<string, number> = {};
   for (const r of enriched) {
