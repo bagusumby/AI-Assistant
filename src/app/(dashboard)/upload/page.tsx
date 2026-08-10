@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigationWarning } from "@/lib/useNavigationWarning";
 import { useSession } from "next-auth/react";
 import { formatDateTime } from "@/lib/dateUtils";
+import { useDebounce } from "@/lib/useDebounce";
 
 interface FileItem {
   id: string;
@@ -39,6 +40,9 @@ export default function UploadPage() {
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [previewContent, setPreviewContent] = useState<{ content: string; metadata: Record<string, unknown> }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [filenameFilter, setFilenameFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+  const debouncedFilename = useDebounce(filenameFilter);
 
   const isAdmin = session?.user?.role === "admin";
   const isManager = session?.user?.roleType === "manager";
@@ -47,12 +51,19 @@ export default function UploadPage() {
   useNavigationWarning(uploading);
 
   const fetchFiles = useCallback(async () => {
-    const url = isAdmin && filterBotId ? `/api/files?botId=${filterBotId}` : "/api/files";
-    const res = await fetch(url);
+    const params = new URLSearchParams();
+    if (isAdmin && filterBotId) params.set("botId", filterBotId);
+    if (debouncedFilename) params.set("filename", debouncedFilename);
+    if (dateFilter) params.set("date", dateFilter);
+    const qs = params.toString();
+    const res = await fetch(`/api/files${qs ? `?${qs}` : ""}`);
     if (res.ok) setFiles(await res.json());
-  }, [isAdmin, filterBotId]);
+  }, [isAdmin, filterBotId, debouncedFilename, dateFilter]);
 
-  useEffect(() => { fetchFiles(); }, [fetchFiles]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchFiles();
+  }, [fetchFiles]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -245,6 +256,51 @@ export default function UploadPage() {
         {/* File List */}
         <div className="mt-8">
           <h3 className="text-sm font-medium text-gray-300 mb-4">Dokumen Terupload</h3>
+
+          {/* Search: filename + upload date */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="relative flex-1">
+              <svg className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+              <input
+                type="text"
+                value={filenameFilter}
+                onChange={(e) => setFilenameFilter(e.target.value)}
+                placeholder="Cari nama file..."
+                className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-gray-500 outline-none focus:border-indigo-500 transition-all"
+              />
+              {filenameFilter && (
+                <button
+                  onClick={() => setFilenameFilter("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <div className="relative flex-1">
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="w-full px-4 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white outline-none focus:border-indigo-500 transition-all [color-scheme:dark]"
+              />
+              {dateFilter && (
+                <button
+                  onClick={() => setDateFilter("")}
+                  className="absolute right-9 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 bg-transparent"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+
           {files.length === 0 ? (
             <div className="text-center py-12 text-gray-500 text-sm">Belum ada dokumen</div>
           ) : (

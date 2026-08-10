@@ -32,6 +32,17 @@ export async function GET(req: NextRequest) {
     query = query.eq("ai_bot_id", botId);
   }
 
+  const filename = searchParams.get("filename")?.trim();
+  if (filename) query = query.ilike("filename", `%${filename}%`);
+
+  const date = searchParams.get("date")?.trim();
+  if (date) {
+    // Day boundaries in WIB (UTC+7) converted to UTC for the TIMESTAMPTZ column
+    const start = new Date(`${date}T00:00:00+07:00`);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    query = query.gte("created_at", start.toISOString()).lt("created_at", end.toISOString());
+  }
+
   const { data: files, error } = await query;
 
   if (error) {
